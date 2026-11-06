@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6d4bdcbea0184c41c95649c39e6a1b0, type: 3}
+  m_Name: UiTheme
+  m_EditorClassIdentifier: 
+  _backgroundDeepNavy: {r: 0.035, g: 0.055, b: 0.11, a: 1}
+  _surfaceNavy: {r: 0.063, g: 0.094, b: 0.165, a: 0.92}
+  _panelNavy: {r: 0.047, g: 0.071, b: 0.129, a: 0.98}
+  _primaryCyan: {r: 0.133, g: 0.827, b: 0.933, a: 1}
+  _accentGreen: {r: 0.204, g: 0.827, b: 0.6, a: 1}
+  _textPrimary: {r: 0.902, g: 0.949, b: 0.98, a: 1}
+  _textMuted: {r: 0.408, g: 0.502, b: 0.612, a: 1}
+  _danger: {r: 0.937, g: 0.353, b: 0.353, a: 1}
+  _titleFontSize: 92
+  _sectionFontSize: 22
+  _buttonFontSize: 26
+  _bodyFontSize: 18
+  _titleCharacterSpacing: 18
+  _fontOverride: {fileID: 0}
