@@ -43,7 +43,7 @@ Two folders were added beyond the requested list, both justified and documented:
 
 | Category | Count | Details |
 | --- | --- | --- |
-| C# sources | 67 (5,704 lines) | 50 runtime, 2 editor, 11 EditMode test files, 4 PlayMode test files |
+| C# sources | 67 (5,752 lines) | 50 runtime, 2 editor, 11 EditMode test files, 4 PlayMode test files |
 | Unity scenes | 3 | `Bootstrap.unity`, `MainMenu.unity`, `Gameplay.unity` |
 | ScriptableObject assets | 2 | `Resources/Config/GameConfiguration.asset`, `Resources/Config/UiTheme.asset` |
 | URP assets | 7 | PC/Mobile pipeline + renderer, URP global settings, 3 volume profiles (Unity 6.3 URP template, unmodified) |
@@ -198,6 +198,9 @@ Because a compiler was unavailable, the risky engine APIs were checked against
 | `InputSystemUIInputModule` assigns default UI actions in `OnEnable` when added at runtime | ✅ confirmed in `InputSystemUIInputModule.cs` (`if (HasNoActions()) AssignDefaultActions();`) |
 | URP script GUIDs written into the copied URP assets are the package's own | ✅ cross-checked against real Unity 6.3 URP projects |
 | Package versions valid for 6.3 | ✅ cross-checked against three public 6000.3 projects' manifests |
+| Assembly names used in the asmdefs | ✅ `Unity.InputSystem`, `Unity.TextMeshPro`, `UnityEngine.UI`, `UnityEngine.TestRunner`, `UnityEditor.TestRunner` confirmed in the packages' own `.asmdef` files |
+| Cross-file member/property names (e.g. `_view.NewGameButton.Button`, `AppContext.IsReady`) | ✅ scripted cross-reference: no unresolved project-type members |
+| `using` directives vs. the engine types each file touches | ✅ scripted check: no missing `using` (3 reported hits were property accesses, not types) |
 
 ## 6. Remaining errors and limitations
 
