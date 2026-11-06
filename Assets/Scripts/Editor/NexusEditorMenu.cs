@@ -12,7 +12,7 @@ namespace Nexus.EditorTools
     {
         private const string ConfigFolder = "Assets/Resources/Config";
 
-        [MenuItem("Nexus/Open Bootstrap Scene", priority = 0)]
+        [MenuItem("Nexus/Open Bootstrap Scene", false, 0)]
         public static void OpenBootstrapScene()
         {
             string path = "Assets/Scenes/Bootstrap/" + SceneNames.Bootstrap + ".unity";
@@ -28,7 +28,7 @@ namespace Nexus.EditorTools
             }
         }
 
-        [MenuItem("Nexus/Open Main Menu Scene", priority = 1)]
+        [MenuItem("Nexus/Open Main Menu Scene", false, 1)]
         public static void OpenMainMenuScene()
         {
             string path = "Assets/Scenes/MainMenu/" + SceneNames.MainMenu + ".unity";
@@ -44,7 +44,7 @@ namespace Nexus.EditorTools
             }
         }
 
-        [MenuItem("Nexus/Open Gameplay Scene", priority = 2)]
+        [MenuItem("Nexus/Open Gameplay Scene", false, 2)]
         public static void OpenGameplayScene()
         {
             string path = "Assets/Scenes/Gameplay/" + SceneNames.Gameplay + ".unity";
@@ -60,7 +60,7 @@ namespace Nexus.EditorTools
             }
         }
 
-        [MenuItem("Nexus/Create Default Configuration Assets", priority = 40)]
+        [MenuItem("Nexus/Create Default Configuration Assets", false, 40)]
         public static void CreateDefaultConfigurationAssets()
         {
             Directory.CreateDirectory(ConfigFolder);

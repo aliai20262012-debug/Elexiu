@@ -31,7 +31,7 @@ namespace Nexus.EditorTools
             }
         }
 
-        [MenuItem("Nexus/Validate Project", priority = 20)]
+        [MenuItem("Nexus/Validate Project", false, 20)]
         public static void ValidateFromMenu()
         {
             List<Issue> issues = Validate();
