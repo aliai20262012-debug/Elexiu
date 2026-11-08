@@ -1,4 +1,3 @@
-using Nexus.CameraSystem;
 using Nexus.Configuration;
 using Nexus.Core;
 using Nexus.Core.Bootstrap;
@@ -34,6 +33,8 @@ namespace Nexus.Simulation
         private IPlatformInfo _platform;
         private GameplayHud _hud;
         private PlanetViewController _planet;
+        private PlanetSceneController _planetScene;
+        private Camera _sceneCamera;
         private ErrorOverlay _errorOverlay;
         private bool _subscribed;
 
@@ -62,6 +63,17 @@ namespace Nexus.Simulation
             get { return _simulation != null ? _simulation.ElapsedSeconds : 0.0; }
         }
 
+        /// <summary>Planet presentation controller (null until the session is running).</summary>
+        public PlanetSceneController PlanetScene
+        {
+            get { return _planetScene; }
+        }
+
+        public PlanetViewController Planet
+        {
+            get { return _planet; }
+        }
+
         public bool IsSimulationRunning
         {
             get { return _simulation != null && _simulation.Status == SimulationStatus.Running; }
@@ -87,6 +99,7 @@ namespace Nexus.Simulation
                 return;
             }
 
+            BuildPlanetAndInteraction();
             RefreshHudFromSimulation();
         }
 
@@ -254,18 +267,47 @@ namespace Nexus.Simulation
                 sceneCamera.backgroundColor = _configuration.Theme.BackgroundDeepNavy;
             }
 
-            CameraRig rig = sceneCamera.GetComponent<CameraRig>();
-            if (rig == null)
-            {
-                rig = sceneCamera.gameObject.AddComponent<CameraRig>();
-            }
-
-            rig.Initialize(_planet.transform);
+            // Camera framing and input belong to the planet scene controller, which configures
+            // the orbit camera once the planet exists (see BuildPlanetAndInteraction).
+            _sceneCamera = sceneCamera;
 
             _hud = new GameplayHud(_configuration.Theme, _configuration.Game, _platform);
             _hud.ReturnToMenuButton.Button.onClick.AddListener(OnReturnToMenuPressed);
             _hud.ControlBar.PauseResumeRequested += OnPauseResumeRequested;
             _hud.ControlBar.SpeedRequested += OnSpeedRequested;
+        }
+
+        /// <summary>
+        /// Builds the procedural planet with the session seed and wires input, camera and the
+        /// region panel. Runs after the session exists so the planet is deterministic per seed.
+        /// </summary>
+        private void BuildPlanetAndInteraction()
+        {
+            if (_planet == null || _sceneCamera == null)
+            {
+                return;
+            }
+
+            GameSession session = _sessions != null ? _sessions.Current : null;
+            int seed = session != null ? session.Seed : 0;
+            bool highQuality = _platform == null || !_platform.IsMobile || _platform.IsTablet;
+
+            _planet.Build(seed, highQuality);
+
+            _planetScene = GetComponent<PlanetSceneController>();
+            if (_planetScene == null)
+            {
+                _planetScene = gameObject.AddComponent<PlanetSceneController>();
+            }
+
+            _planetScene.Initialize(_planet, _hud, _sceneCamera, _eventBus, _platform);
+
+            if (_planet.Definition != null)
+            {
+                GameLog.Info(
+                    "Planet " + _planet.Definition.DisplayName + " generated with " +
+                    _planet.Regions.Count + " regions (seed " + seed + ").");
+            }
         }
 
         private bool StartSession()
@@ -421,6 +463,11 @@ namespace Nexus.Simulation
 
         private void OnReturnToMenuPressed()
         {
+            if (_planetScene != null)
+            {
+                _planetScene.ReturnToOverview();
+            }
+
             if (_sessions != null && _sessions.HasActiveSession)
             {
                 _sessions.EndSession(SessionEndReason.PlayerRequested);

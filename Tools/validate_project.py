@@ -504,6 +504,178 @@ def check_urp_wiring(guids):
         info.append("{0} quality levels wired to URP assets".format(len(pipelines)))
 
 
+PLANET_DEFINITION_ASSET = ASSETS / "Resources" / "Config" / "Planet" / "Nexus-01.asset"
+PLANET_REGION_FILE = ASSETS / "Resources" / "Config" / "Planet" / "nexus-01.regions.json"
+GAME_CONFIGURATION_ASSET = ASSETS / "Resources" / "Config" / "GameConfiguration.asset"
+
+KNOWN_TERRAIN = {
+    "Ocean", "Coastal", "Plains", "Steppe", "Desert",
+    "Tundra", "Highlands", "Mountains", "Volcanic", "Ice",
+}
+KNOWN_WATER = {"Landlocked", "Coastal", "OceanAccess", "OpenOcean"}
+KNOWN_RESOURCES = {"Minerals", "Metals", "RareEarths", "Water", "Biomass", "Geothermal"}
+
+
+def guid_reference(path_text, label):
+    """Returns the guid referenced by the first line containing label, or None."""
+    match = re.search(r"^\s*" + re.escape(label) + r":\s*\{fileID:\s*\d+,\s*guid:\s*([0-9a-f]{32})",
+                      path_text, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def check_planet_data(guids):
+    """Validates the authored planet asset and the region table without the Unity Editor."""
+    if not PLANET_REGION_FILE.exists():
+        error("Missing planet region file: {0}".format(PLANET_REGION_FILE.relative_to(PROJECT_ROOT)))
+        return
+
+    if not PLANET_DEFINITION_ASSET.exists():
+        error("Missing planet definition asset: {0}".format(PLANET_DEFINITION_ASSET.relative_to(PROJECT_ROOT)))
+        return
+
+    definition_text = PLANET_DEFINITION_ASSET.read_text()
+    planet_id_match = re.search(r"^\s*_planetId:\s*(\S.*)$", definition_text, re.MULTILINE)
+    planet_id = planet_id_match.group(1).strip() if planet_id_match else ""
+
+    script_guid = guid_reference(definition_text, "m_Script")
+    if script_guid is None:
+        error("Planet asset has no script reference")
+    else:
+        script_asset = guids.get(script_guid)
+        if script_asset is None:
+            error("Planet asset script guid {0} does not resolve".format(script_guid))
+        elif script_asset.name != "PlanetDefinition.cs":
+            error("Planet asset script resolves to {0} instead of PlanetDefinition.cs".format(script_asset))
+
+    region_guid = guid_reference(definition_text, "_regionFile")
+    if region_guid is None:
+        error("Planet asset does not reference a region file")
+    else:
+        region_asset = guids.get(region_guid)
+        if region_asset is None:
+            error("Planet region file guid {0} does not resolve".format(region_guid))
+        elif region_asset.resolve() != PLANET_REGION_FILE.resolve():
+            error("Planet region reference points to {0}".format(region_asset))
+
+    if GAME_CONFIGURATION_ASSET.exists():
+        configuration_text = GAME_CONFIGURATION_ASSET.read_text()
+        configured_guid = guid_reference(configuration_text, "_defaultPlanet")
+        if configured_guid is None:
+            error("GameConfiguration does not reference a default planet")
+        else:
+            configured_asset = guids.get(configured_guid)
+            if configured_asset is None:
+                error("GameConfiguration default planet guid {0} does not resolve".format(configured_guid))
+            elif configured_asset.resolve() != PLANET_DEFINITION_ASSET.resolve():
+                error("GameConfiguration default planet points to {0}".format(configured_asset))
+
+    try:
+        region_file = json.loads(PLANET_REGION_FILE.read_text())
+    except Exception as exception:  # noqa: BLE001
+        error("Planet region file is not valid JSON: {0}".format(exception))
+        return
+
+    if planet_id and region_file.get("planetId") != planet_id:
+        error("Planet region file belongs to '{0}' instead of '{1}'".format(
+            region_file.get("planetId"), planet_id))
+
+    regions = region_file.get("regions") or []
+    if len(regions) < 3:
+        error("Planet region file needs at least 3 regions, found {0}".format(len(regions)))
+
+    ids = set()
+    codes = set()
+    total_resources = 0
+
+    for index, region in enumerate(regions):
+        context = "planet region #{0}".format(index)
+        if not isinstance(region, dict):
+            error(context + ": entry is not an object")
+            continue
+
+        region_id = region.get("id")
+        code = str(region.get("code") or "").strip()
+        if not isinstance(region_id, int) or region_id <= 0:
+            error(context + ": id must be a positive integer")
+        elif region_id in ids:
+            error(context + ": duplicate id {0}".format(region_id))
+        else:
+            ids.add(region_id)
+
+        if not code:
+            error(context + ": code is empty")
+        elif code in codes:
+            error(context + ": duplicate code {0}".format(code))
+        else:
+            codes.add(code)
+
+        for field in ("name", "description"):
+            if not str(region.get(field) or "").strip():
+                error(context + ": missing " + field)
+
+        if region.get("terrain") not in KNOWN_TERRAIN:
+            error(context + ": unknown terrain '{0}'".format(region.get("terrain")))
+
+        if region.get("water") not in KNOWN_WATER:
+            error(context + ": unknown water classification '{0}'".format(region.get("water")))
+
+        latitude = region.get("latitude")
+        longitude = region.get("longitude")
+        radius = region.get("radius")
+        if not isinstance(latitude, (int, float)) or not -90 <= latitude <= 90:
+            error(context + ": latitude out of range")
+        if not isinstance(longitude, (int, float)) or not -180 <= longitude <= 180:
+            error(context + ": longitude out of range")
+        if not isinstance(radius, (int, float)) or not 2 <= radius <= 45:
+            error(context + ": region radius out of range")
+
+        land_fraction = region.get("landFraction")
+        if not isinstance(land_fraction, (int, float)) or not 0 <= land_fraction <= 1:
+            error(context + ": land fraction out of range")
+
+        climate = region.get("climate") or {}
+        for field in ("meanTemperatureC", "temperatureRangeC", "humidity", "windKph", "precipitationMm"):
+            if not isinstance(climate.get(field), (int, float)):
+                error(context + ": climate." + field + " is not numeric")
+        humidity = climate.get("humidity")
+        if isinstance(humidity, (int, float)) and not 0 <= humidity <= 1:
+            error(context + ": humidity out of range")
+
+        environment = region.get("environment") or {}
+        for field in ("airQuality", "radiation", "biodiversity", "tectonicActivity"):
+            value = environment.get(field)
+            if not isinstance(value, (int, float)) or not 0 <= value <= 1:
+                error(context + ": environment." + field + " out of range")
+
+        habitability = region.get("habitability") or {}
+        score = habitability.get("score")
+        if not isinstance(score, (int, float)) or not 0 <= score <= 1:
+            error(context + ": habitability.score out of range")
+        if not str(habitability.get("limitingFactor") or "").strip():
+            error(context + ": habitability.limitingFactor is empty")
+
+        resources = region.get("resources") or []
+        seen = set()
+        for resource in resources:
+            if not isinstance(resource, dict):
+                error(context + ": resource entry is not an object")
+                continue
+            resource_type = resource.get("type")
+            if resource_type not in KNOWN_RESOURCES:
+                error(context + ": unknown resource '{0}'".format(resource_type))
+            elif resource_type in seen:
+                error(context + ": duplicate resource {0}".format(resource_type))
+            else:
+                seen.add(resource_type)
+            abundance = resource.get("abundance")
+            if not isinstance(abundance, (int, float)) or not 0 <= abundance <= 1:
+                error(context + ": resource abundance out of range")
+        total_resources += len(seen)
+
+    info.append("Planet {0}: {1} regions, {2} resource entries validated".format(
+        planet_id or "<unknown>", len(regions), total_resources))
+
+
 def main():
     verbose = "--verbose" in sys.argv
 
@@ -519,6 +691,7 @@ def main():
     check_project_version()
     check_required_files()
     check_urp_wiring(guids)
+    check_planet_data(guids)
 
     print("NEXUS CIVILIZATION - project validation")
     print("=" * 46)

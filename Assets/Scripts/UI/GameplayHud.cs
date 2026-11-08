@@ -22,6 +22,9 @@ namespace Nexus.UI
 
         public UiButton ReturnToMenuButton { get; private set; }
 
+        /// <summary>Region dossier; hidden until the player selects a region.</summary>
+        public RegionInfoPanel RegionPanel { get; private set; }
+
         public GameplayHud(UiTheme theme, GameConfiguration configuration, IPlatformInfo platform)
         {
             _theme = theme;
@@ -86,6 +89,7 @@ namespace Nexus.UI
                 new Vector2(compact ? -24f : -40f, -46f));
 
             ControlBar = new SimulationControlBar(safeArea, theme, configuration, platform);
+            RegionPanel = new RegionInfoPanel(safeArea, theme, platform, ControlBar.BarHeight + 12f);
 
             ReturnToMenuButton = UiFactory.CreateButton(
                 ControlBar.ActionRow,

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Nexus.Core.Logging;
 using Nexus.Core.Scenes;
+using Nexus.Planet;
 using UnityEngine;
 
 namespace Nexus.Configuration
@@ -54,6 +55,10 @@ namespace Nexus.Configuration
         [Tooltip("Fallback civilization name used when a new session is created without a player supplied name.")]
         [SerializeField] private string _defaultCivilizationName = "NEW COLONY";
 
+        [Header("Planet")]
+        [Tooltip("Planet definition used by the gameplay scene. Empty falls back to Resources/Config/Planet/Nexus-01.")]
+        [SerializeField] private PlanetDefinition _defaultPlanet;
+
         [Header("Diagnostics")]
         [SerializeField] private bool _enableVerboseLogging;
 
@@ -101,6 +106,12 @@ namespace Nexus.Configuration
                 string trimmed = _defaultCivilizationName.Trim();
                 return trimmed.Length > 48 ? trimmed.Substring(0, 48).Trim() : trimmed;
             }
+        }
+
+        /// <summary>The planet played in this build; never null (falls back to the shipped default).</summary>
+        public PlanetDefinition DefaultPlanet
+        {
+            get { return _defaultPlanet != null ? _defaultPlanet : PlanetDefinition.LoadDefault(); }
         }
 
         public bool EnableVerboseLogging { get { return _enableVerboseLogging; } }

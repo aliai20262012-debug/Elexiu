@@ -196,6 +196,10 @@ Resources to get the intended typography (widened letter spacing, SDF quality).
   in electric cyan,
 * **RETURN TO MENU**, appended by `GameplayHud` into the same right-aligned action row.
 
+The Phase 03 region dossier (`RegionInfoPanel`) joins the same HUD tree, anchored above the
+control bar: it raises `FocusRequested` / `OverviewRequested` and never touches the camera or
+the simulation directly.
+
 The bar is pure presentation: buttons raise `PauseResumeRequested` / `SpeedRequested` events and
 `GameplaySceneController` translates them into `IGameSessionService` calls. The controls are
 laid out with a `HorizontalLayoutGroup` anchored to the right of the bar, so a wide desktop
@@ -392,7 +396,130 @@ New `GameConfiguration` fields (all optional, all validated on load and in `Sani
 | `_maxFrameDeltaSeconds` | `0.25` | Frame-delta clamp |
 | `_defaultCivilizationName` | `NEW COLONY` | Fallback session name |
 
-## 12. Key decisions and trade-offs
+## 12. Planet system (Phase 03)
+
+Phase 03 adds the first domain system and the first real presentation layer on top of the
+Phase 02 core. Nothing from Phase 01/02 was replaced: the planet uses the same clock, the same
+system graph, the same event bus, the same composition root and the same runtime HUD.
+
+### 12.1 Data model
+
+| Type | Role |
+| --- | --- |
+| `PlanetDefinition` (ScriptableObject, `Resources/Config/Planet/Nexus-01.asset`) | Identity (id, name, designation, seed), physical constants (radius, gravity, day length, orbital period, axial tilt, visual spin), surface tuning (sea level, continent/detail frequency, ridge strength, relief, ocean depth), quality (mesh subdivision, texture width, atmosphere density) and the region file reference |
+| `PlanetRegionFile` + `PlanetRegionParser` | JSON data-transfer layer and its defensive parser. Strings for enums, `null` for missing blocks, one issue per problem |
+| `PlanetRegion` | Immutable region: id, code, name, description, terrain category, water class, land fraction, latitude/longitude/angular radius, `ClimateProfile`, `ResourceDeposit[]`, `EnvironmentalIndicators`, `HabitabilityProfile`, precomputed direction |
+| `ClimateProfile` | Mean temperature, seasonal range, humidity, wind, precipitation; `TemperatureAt(phase)` is a pure function used by both simulation and UI |
+| `ResourceDeposit` / `ResourceType` | Normalised 0..1 availability per resource family (minerals, metals, rare earths, water, biomass, geothermal) |
+| `EnvironmentalIndicators` | Air quality, radiation, biodiversity, tectonic activity (all 0..1) |
+| `HabitabilityProfile` | Score 0..1, limiting factor string, coarse rating (`PRIORITY`/`VIABLE`/`MARGINAL`/`HOSTILE`) |
+| `PlanetDataValidator` / `PlanetValidationReport` | Semantic validation (unique ids/codes, ranges, water/terrain consistency, duplicate resources) returning a readable report |
+| `PlanetRegionLibrary` | Code-authored fallback set (8 regions) used when the JSON is missing, and as test fixture |
+
+The region table lives in JSON rather than in the ScriptableObject because it is a large,
+tool-editable list: JSON keeps it diffable, human readable and validatable from CI, while the
+planet identity and generation tuning stay in the inspector-friendly asset. Missing files fall
+back to `PlanetRegionLibrary`; malformed entries are skipped or clamped with an issue, never an
+exception.
+
+### 12.2 Deterministic generation
+
+`PlanetSurface` is a pure C# model (no Unity objects) built from `PlanetSurfaceSettings`
+(seed = `definition.ResolveSurfaceSeed(sessionSeed)`, sea level, frequencies, relief, depth).
+`PlanetNoise` provides hash-based 3D value noise, fBm and ridged fBm; the height field is
+`fBm(continents) + detail + ridges`, smooth-stepped so coastlines are crisp. Everything is a
+function of (seed, direction), so two runs with the same session seed produce bit-identical
+heights, and the simulation and the renderer build the same world independently.
+
+The renderer bakes:
+
+* **geometry** — an icosphere (2–6 subdivisions, 20·4ⁿ triangles) displaced per vertex; land
+  triangles go to submesh 0, water triangles to submesh 1 at the sea sphere, so the coastline is
+  a real edge between two materials and the ocean stays flat and specular,
+* **albedo** — an equirectangular map generated from a shared height grid (biome palette, region
+  hint tint, polar caps, altitude shading, grain); the height grid is reused for the normal map,
+* **normal map** — tangent-space normals from the same grid (finite differences projected on
+  the local east/north/up basis), flattened so the low-poly sphere does not read as noise.
+
+Selection feedback is a spherical-cap mesh plus a thin ring, both additive unlit overlays
+parented to the rotating body, rebuilt only when the selection changes and pulsed with a cheap
+scale oscillation. The atmosphere is a slightly larger sphere rendered with a Fresnel shader
+(back faces, additive), loaded from `Resources` with a stock Unlit fallback so a stripped build
+cannot render a pink planet. Lighting is a warm key directional light plus a cyan rim light and
+a flat navy ambient floor, created on demand and reused if the scene already has a key light.
+
+### 12.3 Simulation integration
+
+`PlanetSystem` is the first real `ISimulationSystem`:
+
+* registered once in `ApplicationBootstrapper.Compose` (`Systems.Register(new PlanetSystem(...))`),
+  so every session gets it without scene code,
+* initialized from `SimulationInitializationContext` (session seed → surface seed; region list
+  snapshot), shut down on session end,
+* ticks read only `SimulationContext.ElapsedSeconds`; the calendar is
+  `days = elapsed / dayLength`, the season phase derives from the orbital period, and region
+  temperature is the authored envelope evaluated at the current season in the correct
+  hemisphere minus a latitude term,
+* publishes `PlanetEnvironmentUpdatedEvent` at most once per simulated day (day number, season
+  phase, mean temperature, region count) instead of spamming listeners every tick,
+* exposes `Surface`, `State` and `TryGetRegionEnvironment(regionId, out ...)` for future systems,
+* has no reference to any MonoBehaviour, camera or UI type.
+
+The view builds its own `PlanetSurface` from the same definition and seed, so presentation can
+be rebuilt or replaced without touching simulation state.
+
+### 12.4 Camera, input and regional view
+
+`PlanetCameraController` is a pure orbit camera: yaw/pitch with clamped pitch, exponential
+zoom inside `[minDistance, maxDistance]` (factors of the planet radius), frame-rate independent
+exponential damping, `FocusOn(worldDirection)` / `ReturnToOverview()` transitions and an
+adaptive near/far plane. It is configured by the scene controller, ticks itself, and exposes
+plain methods so EditMode tests can drive it without input.
+
+`PlanetInputController` is the only place that reads devices (Input System): left-drag orbit,
+wheel zoom, tap/click selection, one-finger orbit, two-finger pinch, `Escape` to clear, plus
+`EventSystem` checks so UI never leaks into the camera. Gesture recognition is separated from
+commands (`OrbitBy`, `ZoomBy`, `SelectAtScreenPoint`), which is what the tests exercise.
+
+`PlanetSceneController` connects everything: tap → `PlanetView.SelectRegion` → highlight →
+panel + camera focus + `PlanetRegionSelectedEvent`; overview → clear selection → panel hidden +
+`PlanetRegionClearedEvent`. It also feeds `PlanetEnvironmentUpdatedEvent` into the panel's live
+line. The region dossier (`RegionInfoPanel`, built with the Phase 01 `UiFactory`/`UiTheme`)
+shows identity, terrain/water, coordinates, climate, resources, environmental indicators,
+habitability, limiting factor and the reserved settlement anchor, and is responsive: a right
+sidebar on desktop/tablet, a narrower lower panel on phones.
+
+Picking is a physics raycast against the planet's `MeshCollider`; the hit point is converted
+into body-local space and resolved through the shared `RegionLocator`. Exact region hits win;
+outside every authored radius the nearest region is used so the whole planet is identifiable.
+The same locator drives the surface tint, so what the player sees and what the click selects
+always agree.
+
+### 12.5 Performance budgets
+
+| Target | Mesh | Albedo + normal | Notes |
+| --- | --- | --- | --- |
+| Windows PC / tablets | 5 subdivisions (~10k verts) | 512 × 256 | one directional shadow map, no post processing |
+| Phones | 4 subdivisions (~2.5k verts) | 256 × 128 | `PlanetCameraSettings.Compact`, wider framing |
+
+Textures are generated once on planet build from a shared height grid (one noise pass per
+texel), then the CPU copy is released (`Apply(..., makeNoLongerReadable: true)`); runtime
+allocation after build is limited to the region cap/ring meshes, rebuilt only on selection
+change. Geometry, colliders and materials are created once and destroyed with the view. No
+per-frame allocations exist in the camera, input or HUD update paths.
+
+### 12.6 Risks and limits
+
+* The atmosphere shader is hand-written HLSL for URP 17 and has not been compiled here; the
+  material falls back to stock Unlit if the shader is missing, but the visual result must be
+  confirmed in the editor.
+* Region boundaries are angular distances, not Voronoi polygons on the mesh: the highlight cap
+  is a circular patch and overlapping regions resolve by normalised distance.
+* The surface is a height field; there are no rivers, tectonics, clouds or city lights yet.
+* Season/day progression is visible in the dossier but deliberately slow (15 real minutes per
+  planet day at 1x, 96 days per year), so PlayMode tests do not wait for it.
+
+## 13. Key decisions and trade-offs
 
 | Decision | Rationale | Cost |
 | --- | --- | --- |
@@ -405,12 +532,15 @@ New `GameConfiguration` fields (all optional, all validated on load and in `Sani
 | Two tick events | Domain signal and outcome signal have different consumers | Slightly larger event catalogue, documented in §6 |
 | `SimulationSettings` as an immutable struct | Invalid configuration is impossible to construct | Reconfiguration allocates a small value object |
 
-## 13. Extension points (Phase 03+)
+## 14. Extension points (Phase 04+)
 
 * **Domain systems** — implement `ISimulationSystem` (or extend `SimulationSystemBase`), register
   in `ApplicationBootstrapper.Compose` (or a future `GameplayFeatureRegistry`) and read only
-  `SimulationContext`. Planet, economy, civilization, technology, diplomacy, environment and AI
-  systems all use the same pipeline, including ordering and failure isolation.
+  `SimulationContext`. Planet (already live), economy, civilization, technology, diplomacy,
+  environment and AI systems all use the same pipeline, including ordering and failure isolation.
+* **Settlement anchors** — `PlanetView.TryGetSettlementAnchor(regionId, out position, out normal)`
+  returns the surface point and normal a Phase 04 construction system should attach to; the
+  region dossier already reserves that line.
 * **Deterministic randomness** — `SimulationInitializationContext.Seed` is the agreed source for
   per-system PRNGs; no system should call `UnityEngine.Random`.
 * **Save/load** — serialize `GameSession` + domain snapshots through `ISaveService`; restore by

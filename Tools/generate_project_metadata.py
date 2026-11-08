@@ -57,6 +57,26 @@ NativeFormatImporter:
   assetBundleVariant: 
 """
 
+SHADER_IMPORTER = """fileFormatVersion: 2
+guid: {guid}
+ShaderImporter:
+  externalObjects: {{}}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+"""
+
+TEXT_IMPORTER = """fileFormatVersion: 2
+guid: {guid}
+TextScriptImporter:
+  externalObjects: {{}}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+"""
+
 ASMDEF_IMPORTER = """fileFormatVersion: 2
 guid: {guid}
 AssemblyDefinitionImporter:
@@ -96,7 +116,11 @@ def importer_template_for(rel_path):
         return ASMDEF_IMPORTER
     if suffix == ".asset":
         return NATIVE_IMPORTER
-    if suffix in (".unity", ".prefab", ".mat", ".controller", ".anim", ".json", ".md", ".txt"):
+    if suffix == ".shader":
+        return SHADER_IMPORTER
+    if suffix in (".json", ".csv", ".bytes", ".html", ".htm", ".xml", ".yaml", ".fnt"):
+        return TEXT_IMPORTER
+    if suffix in (".unity", ".prefab", ".mat", ".controller", ".anim", ".md", ".txt"):
         return DEFAULT_IMPORTER
     return DEFAULT_IMPORTER
 

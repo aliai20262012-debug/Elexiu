@@ -1,115 +1,132 @@
+using System.Collections.Generic;
+using Nexus.Configuration;
+using Nexus.Core;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Nexus.Planet
 {
     /// <summary>
-    /// Placeholder planet body for the gameplay shell. Phase 01 only proves that the gameplay
-    /// scene, the simulation clock and the presentation layer are wired together; real planet
-    /// generation (heightfields, biomes, rings) is Phase 03 scope.
+    /// Scene-level owner of the planet. It resolves the authored <see cref="PlanetDefinition"/>
+    /// from configuration, creates the <see cref="PlanetView"/> and guarantees the scene is
+    /// lit. Phase 01 used this class as a placeholder sphere; the public surface
+    /// (<see cref="Body"/>, <see cref="IsBuilt"/>, <see cref="Build()"/>) is preserved.
     /// </summary>
     public sealed class PlanetViewController : MonoBehaviour
     {
-        [SerializeField] private float _rotationDegreesPerSecond = 5f;
-        [SerializeField] private float _radius = 3f;
-        [SerializeField] private Color _surfaceColor = new Color(0.078f, 0.294f, 0.412f, 1f);
+        [Tooltip("Render radius of the planet body in scene units.")]
+        [SerializeField] private float _radius = PlanetView.DefaultRenderRadius;
 
-        private Transform _body;
+        // Phase 01 placeholders: retained so the shipped Gameplay scene keeps its serialized
+        // data. The rotation value is still applied; the surface colour is only a fallback.
+        [SerializeField, HideInInspector] private float _rotationDegreesPerSecond = 5f;
+        [SerializeField, HideInInspector] private Color _surfaceColor = new Color(0.078f, 0.294f, 0.412f, 1f);
 
+        [Tooltip("Build the planet in Awake with the default seed. The gameplay scene builds it after the session starts instead.")]
+        [SerializeField] private bool _buildOnAwake;
+
+        private PlanetView _view;
+        private PlanetDefinition _definition;
+
+        public PlanetView View
+        {
+            get { return _view; }
+        }
+
+        public PlanetDefinition Definition
+        {
+            get { return _definition; }
+        }
+
+        public PlanetSurface Surface
+        {
+            get { return _view != null ? _view.Surface : null; }
+        }
+
+        public IReadOnlyList<PlanetRegion> Regions
+        {
+            get { return _view != null ? _view.Regions : (IReadOnlyList<PlanetRegion>)new PlanetRegion[0]; }
+        }
+
+        /// <summary>Planet body transform (rotates with the planet); null before <see cref="Build"/>.</summary>
         public Transform Body
         {
-            get { return _body; }
+            get { return _view != null ? _view.BodyTransform : null; }
         }
 
         public bool IsBuilt
         {
-            get { return _body != null; }
+            get { return _view != null && _view.IsBuilt; }
+        }
+
+        public float RenderRadius
+        {
+            get { return _view != null ? _view.Radius : _radius; }
         }
 
         private void Awake()
         {
-            Build();
-        }
+            _definition = ResolveDefinition();
 
-        private void Update()
-        {
-            if (_body != null)
+            if (_buildOnAwake)
             {
-                _body.Rotate(Vector3.up, _rotationDegreesPerSecond * Time.deltaTime, Space.Self);
+                Build();
             }
         }
 
+        /// <summary>Builds the planet with the default seed (tests, tools).</summary>
         public void Build()
         {
-            if (_body != null)
+            Build(0, true);
+        }
+
+        /// <summary>Builds the planet with a session seed and a quality level.</summary>
+        public void Build(int sessionSeed, bool highQuality)
+        {
+            if (IsBuilt)
             {
                 return;
             }
 
-            GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphere.name = "PlanetBody";
-            sphere.transform.SetParent(transform, false);
-            sphere.transform.localPosition = Vector3.zero;
-            sphere.transform.localScale = Vector3.one * (_radius * 2f);
-
-            // No physics in the shell phase: keep the scene free of colliders.
-            Collider collider = sphere.GetComponent<Collider>();
-            if (collider != null)
+            if (_definition == null)
             {
-                Destroy(collider);
+                _definition = ResolveDefinition();
             }
 
-            Renderer renderer = sphere.GetComponent<Renderer>();
-            if (renderer != null)
+            if (_view == null)
             {
-                Material material = CreateSurfaceMaterial();
-                if (material != null)
-                {
-                    renderer.sharedMaterial = material;
-                }
+                GameObject viewObject = new GameObject("Nexus-01");
+                viewObject.transform.SetParent(transform, false);
+                _view = viewObject.AddComponent<PlanetView>();
             }
 
-            _body = sphere.transform;
+            PlanetLighting.EnsureLighting();
+            _view.Build(_definition, sessionSeed, _radius, highQuality);
+
+            if (_rotationDegreesPerSecond > 0f)
+            {
+                _view.SetRotationDegreesPerSecond(_rotationDegreesPerSecond);
+            }
+
+            if (_surfaceColor.a <= 0f)
+            {
+                // Keep the serialized value usable even if a designer clears its alpha.
+                _surfaceColor = new Color(0.078f, 0.294f, 0.412f, 1f);
+            }
         }
 
-        private Material CreateSurfaceMaterial()
+        private PlanetDefinition ResolveDefinition()
         {
-            RenderPipelineAsset pipeline = GraphicsSettings.currentRenderPipeline;
-            Material source = pipeline != null ? pipeline.defaultMaterial : null;
-
-            Material material = source != null ? new Material(source) : null;
-
-            if (material == null)
+            IConfigurationService configuration;
+            if (AppContext.IsReady && AppContext.TryGet(out configuration) && configuration.Game != null)
             {
-                Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-                if (shader == null)
+                PlanetDefinition configured = configuration.Game.DefaultPlanet;
+                if (configured != null)
                 {
-                    shader = Shader.Find("Standard");
+                    return configured;
                 }
-
-                if (shader == null)
-                {
-                    return null;
-                }
-
-                material = new Material(shader);
             }
 
-            ApplyColor(material, _surfaceColor);
-            return material;
-        }
-
-        private static void ApplyColor(Material material, Color color)
-        {
-            if (material.HasProperty("_BaseColor"))
-            {
-                material.SetColor("_BaseColor", color);
-            }
-
-            if (material.HasProperty("_Color"))
-            {
-                material.SetColor("_Color", color);
-            }
+            return PlanetDefinition.LoadDefault();
         }
     }
 }

@@ -1,16 +1,17 @@
 # NEXUS CIVILIZATION
 
-**Phase 02 — Core Game Architecture**
+**Phase 03 — Planet System & World Foundation**
 
 A cross-platform (Windows PC, Android tablets, Android phones, iOS-ready) strategy game
 built with Unity 6.3 LTS, Universal Render Pipeline, the Input System package and
 TextMeshPro.
 
-This repository is currently a **verified technical foundation with a working simulation core**,
-not a game: it contains the application architecture, project configuration, the
-Boot → Main Menu → Gameplay shell, the deterministic simulation lifecycle (clock, pause, speed,
-game sessions, ordered system graph) and the automated test suites. Domain gameplay — planet
-generation, economy, civilization, diplomacy, AI — starts in Phase 03.
+This repository now contains the application architecture, the deterministic simulation core
+(clock, pause, speed, game sessions, ordered system graph) **and the first playable world**:
+NEXUS-01, a procedural 3D planet with continents, oceans, eight surveyable regions, an orbit
+camera with mouse/touch controls, a regional dossier and a planet simulation system that runs
+on the Phase 02 tick pipeline. Economy, civilization, technology, diplomacy and AI follow in
+later phases.
 
 ---
 
@@ -50,10 +51,16 @@ No other packages are required. No third-party asset is used.
   `CORE SIMULATION BUILD · PHASE 02`, the buttons **NEW GAME / CONTINUE / SETTINGS / EXIT**,
   a build stamp and a footer with the detected platform. *Continue stays disabled until a
   save exists; Exit is hidden on mobile platforms.*
-* **Gameplay** — a rotating placeholder planet plus the simulation control bar: a
-  `T+ HH:MM:SS` simulated clock, the lifecycle line (`RUNNING // 1x`), the session line
+* **Gameplay** — the planet **NEXUS-01** with procedural continents, oceans, a cyan
+  atmospheric limb and eight regions on a slowly rotating sphere, plus the simulation control
+  bar: a `T+ HH:MM:SS` simulated clock, the lifecycle line (`RUNNING // 1x`), the session line
   (`NEW COLONY // SEED … // TICK …`), **PAUSE/RESUME**, **1x / 2x / 4x** speed buttons and
-  **RETURN TO MENU**. No gameplay rules are implemented yet — the clock only produces ticks.
+  **RETURN TO MENU**.
+  Drag to orbit, scroll or pinch to zoom, and click/tap a region to open its dossier: terrain
+  and water class, coordinates, climate, resources, environmental indicators, habitability and
+  the camera transition into the regional view. **OVERVIEW** (or a click on empty space,
+  `Escape`) returns to the whole planet. Nothing is built on the surface yet — the settlement
+  anchor is reserved for Phase 04.
 
 ### 3.1 Simulation controls
 
@@ -69,22 +76,55 @@ The simulation is frame-rate independent: the scene feeds `Time.deltaTime` into
 `SimulationManager.Tick` once per frame, and everything below that boundary consumes whole
 ticks (default `0.5 s`). See [ARCHITECTURE.md](ARCHITECTURE.md#11-simulation-core-phase-02).
 
+### 3.2 Planet controls
+
+| Input | Action |
+| --- | --- |
+| Mouse drag / one-finger drag | Orbit the camera around the planet (yaw + clamped pitch) |
+| Mouse wheel / two-finger pinch | Zoom inside the configured distance range (never inside the surface) |
+| Left click / tap on the planet | Select the region under the pointer; opens the dossier and flies the camera in |
+| `ENTER REGION` | Re-focuses the selected region after free orbiting |
+| `OVERVIEW`, click on empty space, `Escape` | Clears the selection and returns to the planet overview |
+| `PAUSE` / speed buttons | Freeze or accelerate simulated time; the planet calendar follows the same clock |
+
+Camera motion is damped, pitch and distance are clamped, and the near plane scales with the
+planet so the view never clips into the terrain. Phones get a wider framing and a reduced mesh
+and texture budget automatically.
+
+### 3.3 Editing the planet
+
+| Asset | Purpose |
+| --- | --- |
+| `Assets/Resources/Config/Planet/Nexus-01.asset` | `PlanetDefinition`: identity, seed, radius, day/season length, axial tilt, surface generation tuning, mesh subdivision, texture size and atmosphere density |
+| `Assets/Resources/Config/Planet/nexus-01.regions.json` | Region table: ids, codes, names, terrain, water class, coordinates, angular radius, climate, resources, environmental indicators and habitability |
+| `Assets/Resources/Shaders/PlanetAtmosphere.shader` | Additive Fresnel atmosphere shell (loaded through `Resources`, with a stock Unlit fallback) |
+| `Assets/Resources/Config/GameConfiguration.asset` | References the planet definition used by the game; missing references fall back to `Resources/Config/Planet/Nexus-01` |
+
+Region data is validated on load: unknown terrain or resource names, duplicate ids/codes,
+out-of-range coordinates and malformed JSON are reported as issues and skipped or clamped
+instead of breaking the session. `python3 Tools/validate_project.py` validates the same file
+without Unity.
+
 ## 4. Running the tests
 
 From the editor: `Window → General → Test Runner`.
 
-* **EditMode** (`Assets/Tests/EditMode`) — **162 tests** covering the state machine, event bus,
+* **EditMode** (`Assets/Tests/EditMode`) — **242 tests** covering the state machine, event bus,
   service registry, configuration, game flow with a fake scene loader, save service, platform
-  classification, UI scaling maths, build settings, and the Phase 02 core: deterministic clock
-  (15), system registry ordering/failure isolation (18), simulation lifecycle and events (21),
-  game sessions (15) and validated simulation settings (15).
-* **PlayMode** (`Assets/Tests/PlayMode`) — **8 tests** covering bootstrap initialisation, scene
-  navigation, the main-menu presentation, session start + ticking, pause/speed controls and
-  safe session teardown across a scene transition with a clean restart.
+  classification, UI scaling maths, build settings, the Phase 02 core (clock, system registry,
+  simulation lifecycle, game sessions, validated settings) and the Phase 03 planet:
+  definition/validation (10), region JSON parsing (11), spherical geometry and region lookup
+  (11), procedural surface (11), planet simulation system (11), orbit camera (9), planet view
+  and selection (10) and the input command layer (7).
+* **PlayMode** (`Assets/Tests/PlayMode`) — **12 tests** covering bootstrap initialisation, scene
+  navigation, the main-menu presentation, session start + ticking, pause/speed controls, safe
+  session teardown across a scene transition, planet construction with regions and camera,
+  region selection + panel + camera focus, return to overview and click-to-select through the
+  real input path.
 
 > The suites are committed as source. They were authored in an environment without a Unity
 > Editor, so they have **not** been executed yet — see
-> [PHASE_02_REPORT.md](PHASE_02_REPORT.md#5-test-results).
+> [PHASE_03_REPORT.md](PHASE_03_REPORT.md#5-test-results).
 
 Command line (headless):
 

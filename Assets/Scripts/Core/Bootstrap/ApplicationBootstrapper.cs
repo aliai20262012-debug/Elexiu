@@ -4,6 +4,7 @@ using Nexus.Core.Events;
 using Nexus.Core.Logging;
 using Nexus.Core.Platform;
 using Nexus.Core.Scenes;
+using Nexus.Planet;
 using Nexus.SaveSystem;
 using Nexus.Settings;
 using Nexus.Simulation;
@@ -127,6 +128,13 @@ namespace Nexus.Core.Bootstrap
             // Configuration is validated inside SimulationSettings, so an edited asset can
             // never produce an unusable clock.
             resolvedSimulation.Configure(SimulationSettings.FromConfiguration(configuration.Game));
+
+            // Planet is the first domain system on the Phase 02 graph. It is registered here,
+            // once, before any session starts; every later domain system follows the same rule.
+            if (configuration.Game != null)
+            {
+                resolvedSimulation.Systems.Register(new PlanetSystem(configuration.Game.DefaultPlanet, eventBus));
+            }
 
             ServiceRegistry services = new ServiceRegistry();
             services.Register(eventBus);

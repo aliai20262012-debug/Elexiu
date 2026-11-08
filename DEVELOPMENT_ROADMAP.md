@@ -1,8 +1,8 @@
 # NEXUS CIVILIZATION — Development Roadmap
 
-> Phase 02 renumbered the later phases. Phase 02 delivered the core game architecture, so the
-> previously planned "simulation domain & gameplay loop" work (planet model, camera, first
-> construction slice) now lives in Phase 03, followed by civilization/economy (04),
+> Phase 02 delivered the core game architecture and Phase 03 delivered the planet and world
+> foundation. The first construction slice and save/load that were originally sketched for
+> Phase 03 now live in Phase 04 together with civilization and economy, followed by
 > diplomacy/AI (05), content & polish (06) and release (07).
 
 ---
@@ -55,28 +55,56 @@ system init/shutdown, scene integration and tests *authored*; static validation 
 suites have not been executed because the development environment has no Unity Editor — see
 the report for the verified/unverified split.
 
-## Phase 03 — World Simulation: Planet, Camera & First Construction
+## Phase 03 — Planet System & World Foundation  ✅ complete
 
-Entry criteria: Phase 02 approved.
+Entry criteria: Phase 02 approved by the project owner.
 
-1. **Planet model** — `Planet`, `HexTile`/`Region` data, biome and resource generation as pure
-   C# systems registered with `SimulationSystemRegistry` (seeded from
-   `SimulationInitializationContext.Seed`, unit tested, no `MonoBehaviour`).
-2. **Planet presentation** — replace `PlanetViewController` with a renderer driven by
-   `SimulationTickCompletedEvent`.
-3. **Camera & input** — `.inputactions` asset, pan/zoom/edge scroll, touch gestures, selection;
-   replaces the placeholder `CameraRig`.
-4. **Construction slice** — one buildable structure resolved on tick (cost, build time,
-   completion event) using the existing system ordering.
-5. **Saving** — implement the `SaveData` payload for planet/empire and enable *Continue*;
-   restore sessions through `TryCreateSession(name, seed, ...)`.
-6. **Tests** — determinism tests for generation, save round-trips, PlayMode build-then-tick.
+**Delivered**
 
-## Phase 04 — Civilization, Economy, Technology
+1. **NEXUS-01 planet** — procedural icosphere with displaced land, a separate flat ocean
+   submesh, baked equirectangular albedo + normal maps, polar caps, a Fresnel atmosphere shell,
+   warm key / cyan rim lighting and deep-navy ambient floor. No flat sphere texture; the whole
+   body is generated from data and the session seed.
+2. **Planet data architecture** — `PlanetDefinition` ScriptableObject (identity, physics,
+   generation tuning, quality, region file reference) plus a validated JSON region table:
+   8 regions with terrain, water class, coordinates/angular radius, climate, resources,
+   environmental indicators and habitability. Parser and validator degrade gracefully.
+3. **Multiple identifiable regions** — region lookup (`RegionLocator`) shared by picking,
+   surface tinting and the dossier; spherical-cap highlight plus ring; nearest-region fallback
+   so every point of the planet resolves to a region.
+4. **Interaction** — mouse orbit/zoom, touch orbit/pinch, damped camera with clamped pitch and
+   distance, adaptive near/far planes, click/tap selection, `Escape`/empty-space to clear.
+5. **Regional view** — camera flies to the selected region, the dossier shows every authored
+   property and the live season/temperature line, and a settlement anchor is reserved for
+   Phase 04.
+6. **Simulation integration** — `PlanetSystem` registered in `ApplicationBootstrapper.Compose`,
+   initialized from `SimulationInitializationContext`, deterministic from `SimulationContext`,
+   published `PlanetEnvironmentUpdatedEvent` once per simulated day, safe shutdown, no UI or
+   camera dependency.
+7. **Quality scaling** — desktop/tablet 5 subdivisions & 512 px maps, phones 4 subdivisions &
+   256 px maps with a wider camera profile; runtime textures are released after upload.
+8. **Tests** — 80 new EditMode tests (definition/validation, region parsing, geometry/lookup,
+   surface determinism, planet system lifecycle, camera, view/selection, input commands) and
+   4 new PlayMode tests (planet construction, region selection + panel + focus, overview
+   return, click-to-select through the real input path).
+9. **Documentation** — [ARCHITECTURE.md](ARCHITECTURE.md) §12, this roadmap,
+   [PHASE_03_REPORT.md](PHASE_03_REPORT.md) and the README.
 
-Population/colony growth, resource chains, production queues, technology tree with
-prerequisites, unlock-driven UI, balance data as ScriptableObjects. Every system registers
-against the Phase 02 pipeline and receives seeds/time from `SimulationContext`.
+**Exit criteria met**: interactive planet, region selection and regional information,
+deterministic planet simulation on the existing graph, scene integration and tests *authored*;
+static validation passes. The suites have not been executed here because the environment has
+no Unity Editor — see the report for the verified/unverified split.
+
+## Phase 04 — Settlement, Civilization, Economy & Saving
+
+Entry criteria: Phase 03 approved.
+
+1. **Construction slice** — one buildable structure per region anchored through
+   `PlanetView.TryGetSettlementAnchor`, cost/build-time resolved on tick with completion events.
+2. **Civilization & economy** — population/colony growth, resource chains, production queues,
+   technology tree with prerequisites, unlock-driven UI, balance data as ScriptableObjects.
+3. **Saving** — implement the `SaveData` payload for planet/region/empire, enable *Continue*
+   and restore sessions through `TryCreateSession(name, seed, ...)`.
 
 ## Phase 05 — Diplomacy & AI
 

@@ -248,4 +248,54 @@ namespace Nexus.Core.Events
             ElapsedSeconds = elapsedSeconds;
         }
     }
+
+    /// <summary>
+    /// Raised by <c>PlanetSystem</c> once per simulated planet day. It is a coarse, low rate
+    /// signal: the HUD and the region panel update from it instead of every tick.
+    /// </summary>
+    public readonly struct PlanetEnvironmentUpdatedEvent : IGameEvent
+    {
+        /// <summary>Fractional simulated days since the session started.</summary>
+        public readonly double PlanetDays;
+
+        public readonly long DayNumber;
+        public readonly float SeasonPhase;
+        public readonly float MeanTemperatureC;
+        public readonly int RegionCount;
+
+        public PlanetEnvironmentUpdatedEvent(double planetDays, long dayNumber, float seasonPhase, float meanTemperatureC, int regionCount)
+        {
+            PlanetDays = planetDays;
+            DayNumber = dayNumber;
+            SeasonPhase = seasonPhase;
+            MeanTemperatureC = meanTemperatureC;
+            RegionCount = regionCount;
+        }
+    }
+
+    /// <summary>Raised when the player selects a region on the planet.</summary>
+    public readonly struct PlanetRegionSelectedEvent : IGameEvent
+    {
+        public readonly int RegionId;
+        public readonly string Code;
+        public readonly string Name;
+
+        public PlanetRegionSelectedEvent(int regionId, string code, string name)
+        {
+            RegionId = regionId;
+            Code = code ?? string.Empty;
+            Name = name ?? string.Empty;
+        }
+    }
+
+    /// <summary>Raised when the player leaves the regional view and the selection is cleared.</summary>
+    public readonly struct PlanetRegionClearedEvent : IGameEvent
+    {
+        public readonly int RegionId;
+
+        public PlanetRegionClearedEvent(int regionId)
+        {
+            RegionId = regionId;
+        }
+    }
 }

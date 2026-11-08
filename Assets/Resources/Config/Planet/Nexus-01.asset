@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d800d303156beaac60d99bff6455043, type: 3}
+  m_Name: Nexus-01
+  m_EditorClassIdentifier: 
+  _planetId: NEXUS-01
+  _displayName: NEXUS-01
+  _designation: CLASS-K TERRESTRIAL // CANDIDATE 07
+  _seed: 20261106
+  _radiusKm: 6180
+  _gravity: 0.97
+  _dayLengthSeconds: 900
+  _orbitalPeriodDays: 96
+  _axialTiltDegrees: 23.4
+  _rotationDegreesPerSecond: 1.5
+  _seaLevel: 0.5
+  _continentFrequency: 1.35
+  _detailFrequency: 7.5
+  _ridgeStrength: 0.55
+  _surfaceRelief: 0.03
+  _oceanDepth: 0.012
+  _meshSubdivisions: 5
+  _textureResolution: 512
+  _atmosphereDensity: 0.65
+  _regionFile: {fileID: 4900000, guid: f547a29dac7d4893e6562757b3246527, type: 3}

@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: GameConfiguration
   m_EditorClassIdentifier: 
   _gameTitle: NEXUS CIVILIZATION
-  _buildVersion: 0.2.0-phase02
-  _buildChannel: CORE SIMULATION
+  _buildVersion: 0.3.0-phase03
+  _buildChannel: PLANETARY SURVEY
   _bootstrapScene: Bootstrap
   _mainMenuScene: MainMenu
   _gameplayScene: Gameplay
@@ -27,4 +27,5 @@ MonoBehaviour:
   _maxCatchUpTicksPerFrame: 8
   _maxFrameDeltaSeconds: 0.25
   _defaultCivilizationName: NEW COLONY
+  _defaultPlanet: {fileID: 11400000, guid: dd8793399abbf2adabd9862dbb89a806, type: 2}
   _enableVerboseLogging: 0
