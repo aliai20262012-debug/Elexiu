@@ -88,6 +88,10 @@ def check_meta_coverage():
     for path in ASSETS.rglob("*"):
         if path.name.endswith(".meta"):
             continue
+        if path.name.startswith("."):
+            # Hidden placeholders (".gitkeep") keep empty Unity folders in Git;
+            # Unity ignores dot files, so they intentionally have no .meta.
+            continue
         meta = path.with_name(path.name + ".meta")
         if not meta.exists():
             error("Missing .meta for {0}".format(path.relative_to(PROJECT_ROOT)))

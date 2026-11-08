@@ -106,6 +106,9 @@ def collect_paths():
     for path in sorted(ASSETS.rglob("*")):
         if path.name.endswith(".meta"):
             continue
+        if path.name.startswith("."):
+            # Unity ignores dot files, so hidden folder placeholders need no .meta.
+            continue
         if path.is_dir():
             entries.append(path)
         elif path.is_file():
