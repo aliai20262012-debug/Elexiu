@@ -293,9 +293,16 @@ surface, serialization of the new asset fields, runtime lifecycle in a real play
   (Git cannot store empty directories, which previously left orphan folder `.meta` files).
 * `729b73b` — Phase 02: the core simulation architecture, tests, configuration, UI and
   documentation (59 files changed, 5981 insertions(+), 197 deletions(-)).
+* `74a802f` — documentation: the exact Phase 02 commit set recorded in this section.
+* `b515b70` — the system graph tolerates duplicate dependency declarations (authoring slip, not
+  a cycle); one EditMode test added.
+* `377f076` — robustness review: tick dispatch aborts when a listener changes the lifecycle
+  mid-batch, undispatched ticks are rolled back, `Tick`/`TickAll` are re-entrancy safe, and the
+  registry stops dispatching when the graph is shut down or rebuilt from inside a `Tick`
+  (12 EditMode tests added, EditMode total 150 → 162).
 * The branch was fast-forwarded onto `001c972` and pushed; no commit was amended, rewritten or
   removed, and the pre-rebase tree is byte-identical to the pushed tree (verified with
-  `git diff`).
+  `git diff`). Subsequent commits are ordinary fast-forward additions.
 
 ---
 
