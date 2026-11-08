@@ -45,7 +45,7 @@ Entry criteria: Phase 01 approved by the project owner.
    time into the driver, mirrors pause into `GameState`, ends the session on scene exit;
    `SimulationControlBar` adds pause/resume, speed buttons (1x/2x/4x), simulated clock,
    lifecycle status and session/tick readout to the existing dark sci-fi HUD.
-8. **Tests** — 84 new EditMode tests (clock, registry, manager, sessions, settings) and 3 new
+8. **Tests** — 85 new EditMode tests (clock, registry, manager, sessions, settings) and 3 new
    PlayMode tests (session start, pause/speed, scene-transition + clean restart).
 9. **Documentation** — this roadmap, [ARCHITECTURE.md](ARCHITECTURE.md) §11 and
    [PHASE_02_REPORT.md](PHASE_02_REPORT.md).

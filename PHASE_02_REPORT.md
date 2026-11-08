@@ -22,7 +22,7 @@ Phase 01 foundation:
 * a minimal, responsive gameplay control surface (clock, status, pause/resume, speed ladder,
   session line, return to menu),
 * validated configuration for every timing parameter,
-* 84 new EditMode tests and 3 new PlayMode tests (authored, not executed here).
+* 85 new EditMode tests and 3 new PlayMode tests (authored, not executed here).
 
 Phase 01 systems were extended, not replaced. Every GUID, scene, URP asset, package version and
 existing test was preserved; the only Phase 01 API change is the widened
@@ -80,7 +80,7 @@ for every new source file (21 new `.meta` files, no GUID changes to existing ass
 | File | New tests |
 | --- | --- |
 | `Assets/Tests/EditMode/SimulationClockTests.cs` | 15 |
-| `Assets/Tests/EditMode/SimulationSystemRegistryTests.cs` | 17 |
+| `Assets/Tests/EditMode/SimulationSystemRegistryTests.cs` | 18 |
 | `Assets/Tests/EditMode/SimulationManagerTests.cs` | 21 |
 | `Assets/Tests/EditMode/GameSessionServiceTests.cs` | 15 |
 | `Assets/Tests/EditMode/SimulationSettingsTests.cs` | 15 |
@@ -157,7 +157,7 @@ Determinism and safety rules (all enforced in `SimulationClock` / `SimulationMan
 
 | Suite | Fixtures | Tests | New in Phase 02 |
 | --- | --- | --- | --- |
-| EditMode | 15 | **149** | **84** |
+| EditMode | 15 | **150** | **85** |
 | PlayMode | 4 | **8** | **3** |
 
 Phase 02 EditMode coverage:
@@ -165,7 +165,7 @@ Phase 02 EditMode coverage:
 | Area | Tests | Examples |
 | --- | --- | --- |
 | Clock | 15 | accumulation, multi-tick frames, clamp, drop budget, pause/resume, speed scaling, elapsed accuracy, invalid deltas, reset, clamping, determinism |
-| System registry | 17 | dependency order, execution-order tie-break, id tie-break, missing dependency, cycle, rollback, idempotent init, tick order, failure isolation, auto-disable, reverse shutdown, shutdown failure, event publication, clear, registration rules |
+| System registry | 18 | dependency order, execution-order tie-break, id tie-break, missing dependency, cycle, rollback, idempotent init, tick order, failure isolation, auto-disable, reverse shutdown, shutdown failure, event publication, clear, registration rules |
 | Simulation manager | 21 | start/stop, started/stopped events, whole-tick production, tick + completed events, context dispatch, pause/resume, speed change/rejection, shutdown, restart, double start, failed init, catch-up clamp, start-paused, settings clamping, dispose |
 | Sessions | 15 | create + events, duplicate rejection, generated seed, fallback/truncated names, initialization failure rollback, pause/resume, speed, progress sync, end, idempotent end, external stop, dispose, re-creation |
 | Settings | 15 | defaults, clamping, fallback ladder, sort/dedupe, non-finite filtering, nearest level, defensive copy, config mapping, config sanitation, labels |
@@ -179,7 +179,7 @@ freezing ticks + speed change, scene transition ending the session and a clean s
 The development environment has **no Unity Editor and no .NET/Mono compiler**, so:
 
 * the C# has **not been compiled** by Unity,
-* the 149 EditMode and 8 PlayMode tests have **not been run**,
+* the 150 EditMode and 8 PlayMode tests have **not been run**,
 * the updated `GameConfiguration.asset` has **not been imported**,
 * the gameplay UI has **not been visually inspected**.
 
@@ -230,7 +230,7 @@ surface, serialization of the new asset fields, runtime lifecycle in a real play
    Resources`).
 4. Check the console: **zero compile errors** expected. If anything fails, it is a Phase 02
    regression and should be reported before Phase 03.
-5. Run `Window → General → Test Runner → EditMode → Run All` — expected **149 / 149 passing**.
+5. Run `Window → General → Test Runner → EditMode → Run All` — expected **150 / 150 passing**.
 6. Run `PlayMode → Run All` — expected **8 / 8 passing** (each boot test takes a few seconds).
 7. Open `Assets/Scenes/Bootstrap/Bootstrap.unity`, press **Play**, choose **NEW GAME**:
    * the control bar shows `T+ 00:00:00`, `RUNNING // 1x`, `NEW COLONY // SEED … // TICK …`;

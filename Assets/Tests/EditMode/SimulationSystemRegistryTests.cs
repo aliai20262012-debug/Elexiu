@@ -163,6 +163,20 @@ namespace Nexus.Tests.EditMode
         }
 
         [Test]
+        public void InitializeAll_ToleratesDuplicateDependencyDeclarations()
+        {
+            List<string> log = new List<string>();
+            SimulationSystemRegistry registry = new SimulationSystemRegistry();
+            registry.Register(new FakeSystem("beta", log));
+            registry.Register(new FakeSystem("alpha", log, 0, new[] { "beta", "beta" }));
+
+            SystemInitializationReport report = registry.InitializeAll(_context);
+
+            Assert.IsTrue(report.Succeeded, "A repeated dependency must not be mistaken for a cycle.");
+            Assert.AreEqual(new[] { "beta", "alpha" }, report.InitializationOrder);
+        }
+
+        [Test]
         public void InitializeAll_ReportsMissingDependency_WithoutInitializingAnything()
         {
             List<string> log = new List<string>();

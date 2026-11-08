@@ -257,6 +257,9 @@ namespace Nexus.Simulation
                     continue;
                 }
 
+                // A dependency declared twice is an authoring slip, not a cycle: count it once.
+                List<string> declared = new List<string>(dependencies.Count);
+
                 for (int d = 0; d < dependencies.Count; d++)
                 {
                     string dependency = dependencies[d];
@@ -266,6 +269,13 @@ namespace Nexus.Simulation
                         failures.Add(new SystemInitializationFailure(id, "Ordering", "declares an empty dependency id."));
                         continue;
                     }
+
+                    if (declared.Contains(dependency))
+                    {
+                        continue;
+                    }
+
+                    declared.Add(dependency);
 
                     if (string.Equals(dependency, id, StringComparison.Ordinal))
                     {
