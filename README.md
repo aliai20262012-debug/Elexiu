@@ -1,14 +1,16 @@
 # NEXUS CIVILIZATION
 
-**Phase 01 — Foundation & Project Setup**
+**Phase 02 — Core Game Architecture**
 
 A cross-platform (Windows PC, Android tablets, Android phones, iOS-ready) strategy game
 built with Unity 6.3 LTS, Universal Render Pipeline, the Input System package and
 TextMeshPro.
 
-This repository is currently a **verified technical foundation**, not a game: it contains the
-application architecture, project configuration, folder structure, the Boot → Main Menu →
-Gameplay shell, and the automated test suites. Gameplay systems start in Phase 02.
+This repository is currently a **verified technical foundation with a working simulation core**,
+not a game: it contains the application architecture, project configuration, the
+Boot → Main Menu → Gameplay shell, the deterministic simulation lifecycle (clock, pause, speed,
+game sessions, ordered system graph) and the automated test suites. Domain gameplay — planet
+generation, economy, civilization, diplomacy, AI — starts in Phase 03.
 
 ---
 
@@ -45,21 +47,44 @@ No other packages are required. No third-party asset is used.
 * **Bootstrap scene** — a deep navy splash with `NEXUS CIVILIZATION`, a status line
   (`COMPOSING SERVICES` → `LOADING COMMAND INTERFACE`) and a progress bar.
 * **Main Menu** — the title in electric cyan with wide letter spacing, subtitle
-  `FOUNDATION BUILD · PHASE 01`, the buttons **NEW GAME / CONTINUE / SETTINGS / EXIT**,
+  `CORE SIMULATION BUILD · PHASE 02`, the buttons **NEW GAME / CONTINUE / SETTINGS / EXIT**,
   a build stamp and a footer with the detected platform. *Continue stays disabled until a
   save exists; Exit is hidden on mobile platforms.*
-* **Gameplay** — a rotating placeholder planet, the simulation tick counter and a
-  **RETURN TO MENU** button. No gameplay rules are implemented yet.
+* **Gameplay** — a rotating placeholder planet plus the simulation control bar: a
+  `T+ HH:MM:SS` simulated clock, the lifecycle line (`RUNNING // 1x`), the session line
+  (`NEW COLONY // SEED … // TICK …`), **PAUSE/RESUME**, **1x / 2x / 4x** speed buttons and
+  **RETURN TO MENU**. No gameplay rules are implemented yet — the clock only produces ticks.
+
+### 3.1 Simulation controls
+
+| Control | Effect |
+| --- | --- |
+| `PAUSE` / `RESUME` | Pauses/resumes the deterministic clock; the application state mirrors it (`Gameplay` ⇄ `Paused`) |
+| `1x` / `2x` / `4x` | Multiplies simulated time; the active level is highlighted in cyan. Levels come from `GameConfiguration.SimulationSpeedMultipliers` |
+| Clock line | Simulated time (`T+ HH:MM:SS`), derived from `ticks × interval` |
+| Session line | Civilization name, deterministic seed and current tick |
+| `RETURN TO MENU` | Ends the session (publishing `GameSessionEndedEvent`), stops the clock and reloads the main menu |
+
+The simulation is frame-rate independent: the scene feeds `Time.deltaTime` into
+`SimulationManager.Tick` once per frame, and everything below that boundary consumes whole
+ticks (default `0.5 s`). See [ARCHITECTURE.md](ARCHITECTURE.md#11-simulation-core-phase-02).
 
 ## 4. Running the tests
 
 From the editor: `Window → General → Test Runner`.
 
-* **EditMode** (`Assets/Tests/EditMode`) — 65 tests covering the state machine, event bus,
-  service registry, configuration, game flow with a fake scene loader, save service,
-  platform classification, UI scaling maths and build settings.
-* **PlayMode** (`Assets/Tests/PlayMode`) — 5 tests covering bootstrap initialisation,
-  scene navigation and the main-menu presentation.
+* **EditMode** (`Assets/Tests/EditMode`) — **149 tests** covering the state machine, event bus,
+  service registry, configuration, game flow with a fake scene loader, save service, platform
+  classification, UI scaling maths, build settings, and the Phase 02 core: deterministic clock
+  (15), system registry ordering/failure isolation (17), simulation lifecycle and events (21),
+  game sessions (15) and validated simulation settings (15).
+* **PlayMode** (`Assets/Tests/PlayMode`) — **8 tests** covering bootstrap initialisation, scene
+  navigation, the main-menu presentation, session start + ticking, pause/speed controls and
+  safe session teardown across a scene transition with a clean restart.
+
+> The suites are committed as source. They were authored in an environment without a Unity
+> Editor, so they have **not** been executed yet — see
+> [PHASE_02_REPORT.md](PHASE_02_REPORT.md#5-test-results).
 
 Command line (headless):
 
@@ -103,8 +128,9 @@ Assets/
   Documentation/ Conventions and the preserved original repository README
   Resources/     Config/GameConfiguration.asset and Config/UiTheme.asset (loaded at runtime)
   Scenes/        Bootstrap/, MainMenu/, Gameplay/
-  Scripts/       Nexus.Runtime assembly - Core, Simulation, Planet, UI, Camera, SaveSystem,
-                 ScriptableObjects, Settings, Editor (Nexus.Editor assembly)
+  Scripts/       Nexus.Runtime assembly - Core, Simulation (clock, driver, system graph,
+                 sessions), Planet, UI, Camera, SaveSystem, ScriptableObjects, Settings,
+                 Editor (Nexus.Editor assembly)
   Settings/      URP pipeline + renderer assets, volume profiles (PC and Mobile tiers)
   Tests/         EditMode/ and PlayMode/ (Nexus.Tests.* assemblies)
 Packages/        manifest.json (pinned, verified versions)
@@ -119,8 +145,9 @@ Full description: [ARCHITECTURE.md](ARCHITECTURE.md).
 | Document | Purpose |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, service graph, event system, state machine, UI scaling, decisions |
-| [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) | Phase plan and Phase 02 entry criteria |
-| [PHASE_01_REPORT.md](PHASE_01_REPORT.md) | What was created, what was verified, what is still open |
+| [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) | Phase plan, completed phases and entry criteria |
+| [PHASE_01_REPORT.md](PHASE_01_REPORT.md) | Foundation: what was created, what was verified, what is still open |
+| [PHASE_02_REPORT.md](PHASE_02_REPORT.md) | Simulation core: files, decisions, test inventory, verification steps |
 
 ## 8. Ground rules
 

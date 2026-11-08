@@ -41,7 +41,7 @@ namespace Nexus.UI
                 Vector2.zero);
 
             UiLabel footer = UiFactory.CreateLabel(
-                root, "Footer", "FOUNDATION BUILD  ·  PHASE 01", theme.BodyFontSize * 0.8f, theme.TextMuted, UiTextAlignment.Center, 4f);
+                root, "Footer", "CORE SIMULATION BUILD  ·  PHASE 02", theme.BodyFontSize * 0.8f, theme.TextMuted, UiTextAlignment.Center, 4f);
             UiFactory.Place(footer.RectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(1200f, 30f), new Vector2(0f, 48f));
         }
 

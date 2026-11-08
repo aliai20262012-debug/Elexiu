@@ -58,7 +58,7 @@ namespace Nexus.Core.Bootstrap
                 SceneLoader sceneLoader = SceneLoader.Create(eventBus);
 
                 SimulationManager simulation = new SimulationManager(eventBus);
-                simulation.Configure(configuration.Game.SimulationTickIntervalSeconds);
+                GameSessionService sessionService = new GameSessionService(eventBus, configuration, simulation);
 
                 ServiceRegistry services = Compose(
                     eventBus,
@@ -68,7 +68,8 @@ namespace Nexus.Core.Bootstrap
                     settings,
                     saveService,
                     sceneLoader,
-                    simulation);
+                    simulation,
+                    sessionService);
 
                 AppContext.Install(services);
 
@@ -102,7 +103,8 @@ namespace Nexus.Core.Bootstrap
             ISettingsService settings,
             ISaveService saveService,
             ISceneLoader sceneLoader,
-            ISimulationManager simulation)
+            ISimulationManager simulation,
+            IGameSessionService sessionService = null)
         {
             if (eventBus == null)
             {
@@ -120,6 +122,11 @@ namespace Nexus.Core.Bootstrap
             }
 
             ISaveService resolvedSaveService = saveService ?? new NullSaveService();
+            ISimulationManager resolvedSimulation = simulation ?? new SimulationManager(eventBus);
+
+            // Configuration is validated inside SimulationSettings, so an edited asset can
+            // never produce an unusable clock.
+            resolvedSimulation.Configure(SimulationSettings.FromConfiguration(configuration.Game));
 
             ServiceRegistry services = new ServiceRegistry();
             services.Register(eventBus);
@@ -129,7 +136,8 @@ namespace Nexus.Core.Bootstrap
             services.Register(resolvedSaveService);
             services.Register(settings ?? new SettingsService(eventBus, null));
             services.Register(sceneLoader);
-            services.Register(simulation ?? new SimulationManager(eventBus));
+            services.Register(resolvedSimulation);
+            services.Register(sessionService ?? new GameSessionService(eventBus, configuration, resolvedSimulation));
             services.Register(new GameManager(eventBus, sceneLoader, configuration, resolvedSaveService));
             return services;
         }

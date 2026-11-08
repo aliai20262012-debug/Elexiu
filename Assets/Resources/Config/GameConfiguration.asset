@@ -13,12 +13,18 @@ MonoBehaviour:
   m_Name: GameConfiguration
   m_EditorClassIdentifier: 
   _gameTitle: NEXUS CIVILIZATION
-  _buildVersion: 0.1.0-phase01
-  _buildChannel: FOUNDATION
+  _buildVersion: 0.2.0-phase02
+  _buildChannel: CORE SIMULATION
   _bootstrapScene: Bootstrap
   _mainMenuScene: MainMenu
   _gameplayScene: Gameplay
   _desktopTargetFrameRate: 120
   _mobileTargetFrameRate: 60
   _simulationTickIntervalSeconds: 0.5
+  _simulationSpeedMultipliers: 0000803f0000004000008040
+  _defaultSimulationSpeedMultiplier: 1
+  _simulationStartsPaused: 0
+  _maxCatchUpTicksPerFrame: 8
+  _maxFrameDeltaSeconds: 0.25
+  _defaultCivilizationName: NEW COLONY
   _enableVerboseLogging: 0

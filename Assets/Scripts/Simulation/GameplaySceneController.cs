@@ -13,28 +13,63 @@ using UnityEngine;
 namespace Nexus.Simulation
 {
     /// <summary>
-    /// Gameplay scene shell: starts the simulation clock, builds the placeholder planet and
-    /// HUD, and routes "return to menu" through the GameManager. Gameplay rules are absent by
-    /// design in Phase 01; domain systems subscribe to SimulationTickEvent later.
+    /// Gameplay scene shell and the only place where frame time enters the simulation.
+    ///
+    /// Responsibilities:
+    /// * resolve the composed services and keep the application state machine in sync,
+    /// * create the game session through <see cref="IGameSessionService"/> (never directly),
+    /// * feed <c>Time.deltaTime</c> into the deterministic driver once per frame,
+    /// * translate HUD intents (pause, speed, menu) into session/simulation calls,
+    /// * terminate the session when the scene is torn down or the player leaves.
+    ///
+    /// No gameplay rule lives here; domain systems register with the simulation manager.
     /// </summary>
     public sealed class GameplaySceneController : MonoBehaviour
     {
         private GameManager _gameManager;
         private ISimulationManager _simulation;
+        private IGameSessionService _sessions;
         private IEventBus _eventBus;
         private IConfigurationService _configuration;
         private IPlatformInfo _platform;
         private GameplayHud _hud;
         private PlanetViewController _planet;
+        private ErrorOverlay _errorOverlay;
+        private bool _subscribed;
 
         public GameplayHud Hud
         {
             get { return _hud; }
         }
 
+        public IGameSessionService Sessions
+        {
+            get { return _sessions; }
+        }
+
+        public GameSession Session
+        {
+            get { return _sessions != null ? _sessions.Current : null; }
+        }
+
         public long TickCount
         {
             get { return _simulation != null ? _simulation.TickCount : 0L; }
+        }
+
+        public double ElapsedSeconds
+        {
+            get { return _simulation != null ? _simulation.ElapsedSeconds : 0.0; }
+        }
+
+        public bool IsSimulationRunning
+        {
+            get { return _simulation != null && _simulation.Status == SimulationStatus.Running; }
+        }
+
+        public bool IsSimulationPaused
+        {
+            get { return _simulation != null && _simulation.Status == SimulationStatus.Paused; }
         }
 
         private void Start()
@@ -45,31 +80,109 @@ namespace Nexus.Simulation
             }
 
             BuildSceneShell();
+            SubscribeToSimulation();
 
-            _eventBus.Subscribe<SimulationTickEvent>(HandleSimulationTick);
-            _simulation.StartSimulation();
+            if (!StartSession())
+            {
+                return;
+            }
+
+            RefreshHudFromSimulation();
         }
 
         private void Update()
         {
-            if (_simulation != null)
+            if (_simulation == null || !_simulation.IsRunning)
             {
-                _simulation.Tick(Time.deltaTime);
+                return;
             }
+
+            // The single frame-time boundary of the simulation. Everything below works in
+            // whole ticks, so changing the frame rate can never change the number of ticks.
+            _simulation.Tick(Time.deltaTime);
         }
 
         private void OnDestroy()
         {
-            if (_eventBus != null)
+            try
             {
-                _eventBus.Unsubscribe<SimulationTickEvent>(HandleSimulationTick);
-                _eventBus = null;
+                UnsubscribeFromSimulation();
+                ReleaseHudSubscriptions();
+
+                if (_sessions != null && _sessions.HasActiveSession)
+                {
+                    _sessions.EndSession(SessionEndReason.SceneUnloaded);
+                }
+                else if (_simulation != null && _simulation.IsRunning)
+                {
+                    _simulation.Stop();
+                }
+            }
+            catch (System.Exception exception)
+            {
+                // Scene teardown during application shutdown must never throw.
+                GameLog.Exception(exception, "Gameplay scene teardown reported an error.");
             }
 
-            if (_simulation != null)
+            _eventBus = null;
+        }
+
+        /// <summary>Pauses or resumes the session and mirrors the change in the app state machine.</summary>
+        public bool ToggleSimulationPause()
+        {
+            if (_sessions == null || !_sessions.HasActiveSession)
             {
-                _simulation.Stop();
+                return false;
             }
+
+            GameSession session = _sessions.Current;
+            if (session == null)
+            {
+                return false;
+            }
+
+            if (session.State == GameSessionState.Paused)
+            {
+                if (!_sessions.Resume())
+                {
+                    return false;
+                }
+
+                if (_gameManager != null && _gameManager.State == GameState.Paused)
+                {
+                    _gameManager.Resume();
+                }
+
+                return true;
+            }
+
+            if (session.State != GameSessionState.Active)
+            {
+                return false;
+            }
+
+            if (!_sessions.Pause())
+            {
+                return false;
+            }
+
+            if (_gameManager != null && _gameManager.State == GameState.Gameplay)
+            {
+                _gameManager.Pause();
+            }
+
+            return true;
+        }
+
+        /// <summary>Requests a speed level for the active session.</summary>
+        public bool SelectSpeed(double multiplier)
+        {
+            if (_sessions == null || !_sessions.HasActiveSession)
+            {
+                return false;
+            }
+
+            return _sessions.SetSimulationSpeed(multiplier);
         }
 
         private bool TryResolveServices()
@@ -92,6 +205,7 @@ namespace Nexus.Simulation
             bool resolved =
                 AppContext.TryGet(out _gameManager) &&
                 AppContext.TryGet(out _simulation) &&
+                AppContext.TryGet(out _sessions) &&
                 AppContext.TryGet(out _eventBus) &&
                 AppContext.TryGet(out _configuration) &&
                 AppContext.TryGet(out _platform);
@@ -150,24 +264,178 @@ namespace Nexus.Simulation
 
             _hud = new GameplayHud(_configuration.Theme, _configuration.Game, _platform);
             _hud.ReturnToMenuButton.Button.onClick.AddListener(OnReturnToMenuPressed);
+            _hud.ControlBar.PauseResumeRequested += OnPauseResumeRequested;
+            _hud.ControlBar.SpeedRequested += OnSpeedRequested;
         }
 
-        private void HandleSimulationTick(SimulationTickEvent gameEvent)
+        private bool StartSession()
         {
-            if (_hud != null)
+            if (_sessions.HasActiveSession)
             {
-                _hud.SetTick(gameEvent.Tick);
+                // Re-entering the scene while a session survived (for example after a
+                // failed reload) reuses it instead of orphaning it.
+                _hud.SetSession(_sessions.Current);
+                return true;
             }
+
+            GameSession session;
+            string error;
+            if (!_sessions.TryCreateSession(out session, out error))
+            {
+                GameLog.Error("The simulation session could not be started: " + error);
+                _hud.SetStatus("SIMULATION START FAILED");
+                _errorOverlay = ErrorOverlay.Show(
+                    "SIMULATION START FAILURE",
+                    error,
+                    RetryStartSession,
+                    _configuration.Theme);
+                return false;
+            }
+
+            _hud.SetSession(session);
+            GameLog.Info("Game session '" + session.SessionId + "' created for " + session.CivilizationName + " (seed " + session.Seed + ").");
+            return true;
+        }
+
+        private void RetryStartSession()
+        {
+            if (_errorOverlay != null)
+            {
+                Destroy(_errorOverlay.gameObject);
+                _errorOverlay = null;
+            }
+
+            if (StartSession())
+            {
+                RefreshHudFromSimulation();
+            }
+        }
+
+        private void SubscribeToSimulation()
+        {
+            if (_eventBus == null || _subscribed)
+            {
+                return;
+            }
+
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(HandleTickCompleted);
+            _eventBus.Subscribe<SimulationStartedEvent>(HandleSimulationStarted);
+            _eventBus.Subscribe<SimulationPausedEvent>(HandleSimulationPaused);
+            _eventBus.Subscribe<SimulationResumedEvent>(HandleSimulationResumed);
+            _eventBus.Subscribe<SimulationSpeedChangedEvent>(HandleSpeedChanged);
+            _eventBus.Subscribe<SimulationStoppedEvent>(HandleSimulationStopped);
+            _subscribed = true;
+        }
+
+        private void UnsubscribeFromSimulation()
+        {
+            if (_eventBus == null || !_subscribed)
+            {
+                return;
+            }
+
+            _eventBus.Unsubscribe<SimulationTickCompletedEvent>(HandleTickCompleted);
+            _eventBus.Unsubscribe<SimulationStartedEvent>(HandleSimulationStarted);
+            _eventBus.Unsubscribe<SimulationPausedEvent>(HandleSimulationPaused);
+            _eventBus.Unsubscribe<SimulationResumedEvent>(HandleSimulationResumed);
+            _eventBus.Unsubscribe<SimulationSpeedChangedEvent>(HandleSpeedChanged);
+            _eventBus.Unsubscribe<SimulationStoppedEvent>(HandleSimulationStopped);
+            _subscribed = false;
+        }
+
+        private void ReleaseHudSubscriptions()
+        {
+            if (_hud == null)
+            {
+                return;
+            }
+
+            if (_hud.ReturnToMenuButton != null && _hud.ReturnToMenuButton.Button != null)
+            {
+                _hud.ReturnToMenuButton.Button.onClick.RemoveListener(OnReturnToMenuPressed);
+            }
+
+            if (_hud.ControlBar != null)
+            {
+                _hud.ControlBar.PauseResumeRequested -= OnPauseResumeRequested;
+                _hud.ControlBar.SpeedRequested -= OnSpeedRequested;
+            }
+        }
+
+        private void HandleTickCompleted(SimulationTickCompletedEvent gameEvent)
+        {
+            if (_hud == null)
+            {
+                return;
+            }
+
+            _hud.SetSimulationTime(gameEvent.ElapsedSeconds, gameEvent.Tick);
+        }
+
+        private void HandleSimulationStarted(SimulationStartedEvent gameEvent)
+        {
+            RefreshHudFromSimulation();
+        }
+
+        private void HandleSimulationPaused(SimulationPausedEvent gameEvent)
+        {
+            RefreshHudFromSimulation();
+        }
+
+        private void HandleSimulationResumed(SimulationResumedEvent gameEvent)
+        {
+            RefreshHudFromSimulation();
+        }
+
+        private void HandleSpeedChanged(SimulationSpeedChangedEvent gameEvent)
+        {
+            RefreshHudFromSimulation();
+        }
+
+        private void HandleSimulationStopped(SimulationStoppedEvent gameEvent)
+        {
+            RefreshHudFromSimulation();
+        }
+
+        private void RefreshHudFromSimulation()
+        {
+            if (_hud == null || _simulation == null)
+            {
+                return;
+            }
+
+            _hud.SetSimulationStatus(_simulation.Status, _simulation.SpeedMultiplier);
+            _hud.SetSimulationTime(_simulation.ElapsedSeconds, _simulation.TickCount);
+            _hud.SetSession(_sessions != null ? _sessions.Current : null);
+        }
+
+        private void OnPauseResumeRequested()
+        {
+            ToggleSimulationPause();
+        }
+
+        private void OnSpeedRequested(double multiplier)
+        {
+            SelectSpeed(multiplier);
         }
 
         private void OnReturnToMenuPressed()
         {
+            if (_sessions != null && _sessions.HasActiveSession)
+            {
+                _sessions.EndSession(SessionEndReason.PlayerRequested);
+            }
+            else if (_simulation != null)
+            {
+                _simulation.Stop();
+            }
+
+            // Set after the stop event so the transition message is not overwritten by the
+            // "STOPPED" state refresh.
             if (_hud != null)
             {
                 _hud.SetStatus("RETURNING TO COMMAND INTERFACE...");
             }
-
-            _simulation.Stop();
 
             if (_gameManager != null)
             {

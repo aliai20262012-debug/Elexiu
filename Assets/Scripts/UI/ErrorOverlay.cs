@@ -55,7 +55,7 @@ namespace Nexus.UI
             UiLabel hint = UiFactory.CreateLabel(
                 panel.rectTransform,
                 "Hint",
-                "Check the Console for the full call stack. Phase 01 shell: bootstrap and scene navigation are the only systems that can fail here.",
+                "Check the Console for the full call stack. Failures here come from service composition, the simulation core or scene navigation.",
                 theme.BodyFontSize * 0.85f,
                 theme.TextMuted,
                 UiTextAlignment.Left,

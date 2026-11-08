@@ -73,8 +73,34 @@ namespace Nexus.Tests.EditMode
             Assert.IsTrue(_registry.IsRegistered<ISaveService>());
             Assert.IsTrue(_registry.IsRegistered<ISceneLoader>());
             Assert.IsTrue(_registry.IsRegistered<ISimulationManager>());
+            Assert.IsTrue(_registry.IsRegistered<IGameSessionService>());
             Assert.IsTrue(_registry.IsRegistered<GameManager>());
-            Assert.AreEqual(9, _registry.Count);
+            Assert.AreEqual(10, _registry.Count);
+        }
+
+        [Test]
+        public void Compose_ConfiguresSimulationFromProjectConfiguration()
+        {
+            EventBus eventBus = new EventBus();
+            IConfigurationService configuration = TestAssets.CreateConfigurationService();
+            PlatformConfiguration platformConfiguration = PlatformConfiguration.For(null);
+
+            _registry = ApplicationBootstrapper.Compose(
+                eventBus,
+                configuration,
+                new PlatformInfo(PlatformKind.WindowsDesktop, 96f, 24f),
+                platformConfiguration,
+                new SettingsService(eventBus, platformConfiguration),
+                new NullSaveService(),
+                new FakeSceneLoader(),
+                new SimulationManager(eventBus));
+
+            ISimulationManager simulation = _registry.Get<ISimulationManager>();
+
+            Assert.AreEqual(configuration.Game.SimulationTickIntervalSeconds, simulation.TickIntervalSeconds, 0.0001);
+            Assert.AreEqual(configuration.Game.DefaultSimulationSpeedMultiplier, simulation.SpeedMultiplier, 0.0001);
+            Assert.AreEqual(configuration.Game.SimulationSpeedMultipliers.Count, simulation.Settings.SpeedLevelCount);
+            Assert.IsNotNull(_registry.Get<IGameSessionService>());
         }
 
         [Test]

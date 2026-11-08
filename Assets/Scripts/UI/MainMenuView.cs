@@ -149,7 +149,7 @@ namespace Nexus.UI
             UiLabel subtitle = UiFactory.CreateLabel(
                 column,
                 "Subtitle",
-                configuration.BuildChannel + " BUILD  ·  PHASE 01 FOUNDATION",
+                configuration.BuildChannel + " BUILD  ·  PHASE 02",
                 theme.SectionFontSize,
                 theme.TextPrimary,
                 UiTextAlignment.Center,
