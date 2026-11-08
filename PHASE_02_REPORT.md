@@ -22,7 +22,7 @@ Phase 01 foundation:
 * a minimal, responsive gameplay control surface (clock, status, pause/resume, speed ladder,
   session line, return to menu),
 * validated configuration for every timing parameter,
-* 85 new EditMode tests and 3 new PlayMode tests (authored, not executed here).
+* 97 new EditMode tests and 3 new PlayMode tests (authored, not executed here).
 
 Phase 01 systems were extended, not replaced. Every GUID, scene, URP asset, package version and
 existing test was preserved; the only Phase 01 API change is the widened
@@ -80,9 +80,9 @@ for every new source file (21 new `.meta` files, no GUID changes to existing ass
 | File | New tests |
 | --- | --- |
 | `Assets/Tests/EditMode/SimulationClockTests.cs` | 15 |
-| `Assets/Tests/EditMode/SimulationSystemRegistryTests.cs` | 18 |
-| `Assets/Tests/EditMode/SimulationManagerTests.cs` | 21 |
-| `Assets/Tests/EditMode/GameSessionServiceTests.cs` | 15 |
+| `Assets/Tests/EditMode/SimulationSystemRegistryTests.cs` | 21 |
+| `Assets/Tests/EditMode/SimulationManagerTests.cs` | 28 |
+| `Assets/Tests/EditMode/GameSessionServiceTests.cs` | 17 |
 | `Assets/Tests/EditMode/SimulationSettingsTests.cs` | 15 |
 | `Assets/Tests/PlayMode/GameplaySimulationTests.cs` | 3 `[UnityTest]` |
 | `Assets/Tests/EditMode/ApplicationBootstrapperTests.cs` | +1 (and service count 9 → 10) |
@@ -148,6 +148,16 @@ Determinism and safety rules (all enforced in `SimulationClock` / `SimulationMan
   systems;
 * a failed start leaves `Status = Failed`, an empty session id and a clean clock; retrying is
   allowed.
+* a tick batch aborts the moment a listener changes the lifecycle (pause, resume, stop, reset,
+  restart, dispose, reconfigure): no stale tick is published into a closed session and no
+  `SimulationTickCompletedEvent` is reported for an unfinished tick;
+* undispatched ticks of an aborted batch are rolled back from the clock, but only while the
+  clock still belongs to that batch (same `TickCount`, same session), so a restart that already
+  reset the clock is never corrected backwards;
+* `Tick` and `TickAll` are re-entrancy safe; a system may shut the graph down from inside its
+  own `Tick` and no further system is dispatched;
+* the tick that was already published stays accounted for, so `TickCount` always matches the
+  highest tick number any listener observed.
 
 ---
 
@@ -157,7 +167,7 @@ Determinism and safety rules (all enforced in `SimulationClock` / `SimulationMan
 
 | Suite | Fixtures | Tests | New in Phase 02 |
 | --- | --- | --- | --- |
-| EditMode | 15 | **150** | **85** |
+| EditMode | 16 | **162** | **97** |
 | PlayMode | 4 | **8** | **3** |
 
 Phase 02 EditMode coverage:
@@ -165,9 +175,9 @@ Phase 02 EditMode coverage:
 | Area | Tests | Examples |
 | --- | --- | --- |
 | Clock | 15 | accumulation, multi-tick frames, clamp, drop budget, pause/resume, speed scaling, elapsed accuracy, invalid deltas, reset, clamping, determinism |
-| System registry | 18 | dependency order, execution-order tie-break, id tie-break, missing dependency, cycle, rollback, idempotent init, tick order, failure isolation, auto-disable, reverse shutdown, shutdown failure, event publication, clear, registration rules |
-| Simulation manager | 21 | start/stop, started/stopped events, whole-tick production, tick + completed events, context dispatch, pause/resume, speed change/rejection, shutdown, restart, double start, failed init, catch-up clamp, start-paused, settings clamping, dispose |
-| Sessions | 15 | create + events, duplicate rejection, generated seed, fallback/truncated names, initialization failure rollback, pause/resume, speed, progress sync, end, idempotent end, external stop, dispose, re-creation |
+| System registry | 21 | dependency order, execution-order tie-break, id tie-break, missing dependency, cycle, rollback, idempotent init, tick order, failure isolation, auto-disable, reverse shutdown, shutdown failure, event publication, clear, registration rules, duplicate dependency declarations, shutdown mid-tick, rebuild mid-tick, re-entrant `TickAll` |
+| Simulation manager | 28 | start/stop, started/stopped events, whole-tick production, tick + completed events, context dispatch, pause/resume, speed change/rejection, shutdown, restart, double start, failed init, catch-up clamp, start-paused, settings clamping, dispose, pause/stop/reset/dispose/restart during a tick event, re-entrant `Tick` |
+| Sessions | 17 | create + events, duplicate rejection, generated seed, fallback/truncated names, initialization failure rollback, pause/resume, speed, progress sync, end, idempotent end, external stop, dispose, re-creation |
 | Settings | 15 | defaults, clamping, fallback ladder, sort/dedupe, non-finite filtering, nearest level, defensive copy, config mapping, config sanitation, labels |
 | Bootstrap | +1 | composed simulation is configured from the project asset |
 
@@ -179,7 +189,7 @@ freezing ticks + speed change, scene transition ending the session and a clean s
 The development environment has **no Unity Editor and no .NET/Mono compiler**, so:
 
 * the C# has **not been compiled** by Unity,
-* the 150 EditMode and 8 PlayMode tests have **not been run**,
+* the 162 EditMode and 8 PlayMode tests have **not been run**,
 * the updated `GameConfiguration.asset` has **not been imported**,
 * the gameplay UI has **not been visually inspected**.
 
@@ -230,7 +240,7 @@ surface, serialization of the new asset fields, runtime lifecycle in a real play
    Resources`).
 4. Check the console: **zero compile errors** expected. If anything fails, it is a Phase 02
    regression and should be reported before Phase 03.
-5. Run `Window → General → Test Runner → EditMode → Run All` — expected **150 / 150 passing**.
+5. Run `Window → General → Test Runner → EditMode → Run All` — expected **162 / 162 passing**.
 6. Run `PlayMode → Run All` — expected **8 / 8 passing** (each boot test takes a few seconds).
 7. Open `Assets/Scenes/Bootstrap/Bootstrap.unity`, press **Play**, choose **NEW GAME**:
    * the control bar shows `T+ 00:00:00`, `RUNNING // 1x`, `NEW COLONY // SEED … // TICK …`;

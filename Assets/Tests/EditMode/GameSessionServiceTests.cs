@@ -294,6 +294,69 @@ namespace Nexus.Tests.EditMode
         }
 
         [Test]
+        public void PauseDuringTickEvent_KeepsSessionAndClockConsistent()
+        {
+            GameSession session = CreateSession();
+
+            int completedEvents = 0;
+            bool pauseOnce = true;
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                if (!pauseOnce)
+                {
+                    return;
+                }
+
+                pauseOnce = false;
+                _sessions.Pause();
+            });
+
+            AdvanceOneTick();
+
+            Assert.AreEqual(GameSessionState.Paused, session.State);
+            Assert.AreEqual(SimulationStatus.Paused, _simulation.Status);
+            Assert.AreEqual(0, completedEvents, "A paused tick must not be reported as completed.");
+            Assert.AreEqual(0L, session.TickCount);
+            Assert.AreEqual(1L, _simulation.TickCount, "The tick that was already published stays accounted for.");
+
+            Assert.IsTrue(_sessions.Resume());
+            AdvanceOneTick();
+
+            Assert.AreEqual(GameSessionState.Active, session.State);
+            Assert.AreEqual(1, completedEvents);
+            Assert.AreEqual(2L, session.TickCount);
+            Assert.AreEqual(2L, _simulation.TickCount);
+        }
+
+        [Test]
+        public void EndSessionDuringTickEvent_LeavesCleanState()
+        {
+            CreateSession();
+
+            int completedEvents = 0;
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                if (_sessions.HasActiveSession)
+                {
+                    _sessions.EndSession(SessionEndReason.PlayerRequested);
+                }
+            });
+
+            AdvanceOneTick();
+
+            Assert.AreEqual(0, completedEvents);
+            Assert.AreEqual(1, _ended.Count);
+            Assert.AreEqual(SessionEndReason.PlayerRequested, _ended[0].Reason);
+            Assert.IsNull(_sessions.Current);
+            Assert.IsFalse(_sessions.HasActiveSession);
+            Assert.AreEqual(SimulationStatus.Stopped, _simulation.Status);
+            Assert.AreEqual(0L, _simulation.TickCount);
+            Assert.AreEqual(0.0, _simulation.ElapsedSeconds, 0.0001);
+        }
+
+        [Test]
         public void SessionsCanBeRecreatedAfterEnding()
         {
             GameSession first = CreateSession();

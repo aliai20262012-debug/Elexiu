@@ -222,6 +222,25 @@ namespace Nexus.Simulation
             return completed;
         }
 
+        /// <summary>
+        /// Rolls back ticks that were computed by <see cref="Advance"/> but never dispatched
+        /// because the simulation was paused, stopped, reset or disposed from inside a tick
+        /// callback. Keeps <see cref="TickCount"/> and <see cref="ElapsedSeconds"/> consistent
+        /// with the ticks systems actually observed. The accumulator is intentionally left
+        /// alone: the frame was already consumed.
+        /// </summary>
+        public void DiscardUnprocessedTicks(int count)
+        {
+            if (count <= 0)
+            {
+                return;
+            }
+
+            long remaining = _tickCount - count;
+            _tickCount = remaining > 0 ? remaining : 0;
+            _elapsedSeconds = _tickCount * _tickIntervalSeconds;
+        }
+
         public static double ClampTickInterval(double value)
         {
             if (double.IsNaN(value))

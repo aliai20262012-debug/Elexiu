@@ -30,6 +30,8 @@ namespace Nexus.Simulation
         private int[] _consecutiveFailures = new int[0];
         private bool[] _disabled = new bool[0];
         private bool _initialized;
+        private bool _isTicking;
+        private int _generation;
 
         public SimulationSystemRegistry()
             : this(null)
@@ -95,6 +97,7 @@ namespace Nexus.Simulation
                 return new SystemInitializationReport(_executionOrder, null, _ordered.Length);
             }
 
+            _generation++;
             List<string> order;
             List<SystemInitializationFailure> failures;
             if (!TryBuildExecutionOrder(out order, out failures))
@@ -142,41 +145,65 @@ namespace Nexus.Simulation
 
         public int TickAll(SimulationContext context)
         {
-            if (!_initialized)
+            // Re-entrancy guard: a system must not recurse into dispatch.
+            if (!_initialized || _isTicking)
             {
                 return 0;
             }
 
             int failureCount = 0;
-            for (int i = 0; i < _ordered.Length; i++)
+
+            // Snapshot the arrays: a system is allowed to shut the graph down (session end,
+            // scene teardown) from inside its own Tick, which replaces these fields.
+            ISimulationSystem[] ordered = _ordered;
+            int[] consecutiveFailures = _consecutiveFailures;
+            bool[] disabled = _disabled;
+            int generation = _generation;
+
+            _isTicking = true;
+
+            try
             {
-                if (_disabled[i])
+                for (int i = 0; i < ordered.Length; i++)
                 {
-                    continue;
-                }
-
-                try
-                {
-                    _ordered[i].Tick(context);
-                    _consecutiveFailures[i] = 0;
-                }
-                catch (Exception exception)
-                {
-                    failureCount++;
-                    _consecutiveFailures[i]++;
-                    string id = _ordered[i].SystemId;
-                    GameLog.Exception(exception, "Simulation system '" + id + "' failed during tick " + context.Tick + ".");
-
-                    SystemInitializationFailure failure =
-                        new SystemInitializationFailure(id, "Tick", Describe(exception));
-                    PublishFailure(failure);
-
-                    if (_consecutiveFailures[i] >= MaxConsecutiveFailures)
+                    // Never dispatch into a closed (or rebuilt) graph.
+                    if (!_initialized || _generation != generation)
                     {
-                        _disabled[i] = true;
-                        GameLog.Error("Simulation system '" + id + "' was disabled after " + MaxConsecutiveFailures + " consecutive tick failures.");
+                        break;
+                    }
+
+                    if (disabled[i])
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        ordered[i].Tick(context);
+                        consecutiveFailures[i] = 0;
+                    }
+                    catch (Exception exception)
+                    {
+                        failureCount++;
+                        consecutiveFailures[i]++;
+                        string id = ordered[i].SystemId;
+                        GameLog.Exception(exception, "Simulation system '" + id + "' failed during tick " + context.Tick + ".");
+
+                        SystemInitializationFailure failure =
+                            new SystemInitializationFailure(id, "Tick", Describe(exception));
+                        PublishFailure(failure);
+
+                        if (consecutiveFailures[i] >= MaxConsecutiveFailures)
+                        {
+                            disabled[i] = true;
+                            GameLog.Error("Simulation system '" + id + "' was disabled after " + MaxConsecutiveFailures + " consecutive tick failures.");
+                        }
                     }
                 }
+            }
+            finally
+            {
+                _isTicking = false;
             }
 
             return failureCount;
@@ -189,6 +216,7 @@ namespace Nexus.Simulation
                 return;
             }
 
+            _generation++;
             ShutdownInitialized(_ordered);
 
             _initialized = false;

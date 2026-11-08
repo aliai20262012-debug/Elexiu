@@ -40,6 +40,9 @@ namespace Nexus.Tests.EditMode
 
             public bool ThrowOnShutdown { get; set; }
 
+            /// <summary>Invoked at the end of a successful tick (used to simulate re-entrancy).</summary>
+            public System.Action OnTick { get; set; }
+
             public int InitializeCount { get; private set; }
 
             public int ShutdownCount { get; private set; }
@@ -74,6 +77,12 @@ namespace Nexus.Tests.EditMode
                 if (_log != null)
                 {
                     _log.Add("tick:" + SystemId);
+                }
+
+                System.Action action = OnTick;
+                if (action != null)
+                {
+                    action();
                 }
             }
 
@@ -376,6 +385,68 @@ namespace Nexus.Tests.EditMode
 
             Assert.AreEqual("alpha", capturedId);
             Assert.AreEqual("Initialize", capturedPhase);
+        }
+
+        [Test]
+        public void TickAll_StopsDispatching_WhenGraphIsShutDownDuringTick()
+        {
+            List<string> log = new List<string>();
+            SimulationSystemRegistry registry = new SimulationSystemRegistry();
+            FakeSystem first = new FakeSystem("alpha", log);
+            FakeSystem second = new FakeSystem("beta", log);
+            first.OnTick = registry.ShutdownAll;
+
+            registry.Register(first);
+            registry.Register(second);
+            registry.InitializeAll(_context);
+
+            int failures = registry.TickAll(Tick(1));
+
+            Assert.AreEqual(0, failures);
+            Assert.AreEqual(1, first.TickCount);
+            Assert.AreEqual(0, second.TickCount, "A shut down graph must not dispatch to the remaining systems.");
+            Assert.IsFalse(registry.IsInitialized);
+        }
+
+        [Test]
+        public void TickAll_StopsDispatching_WhenGraphIsRebuiltDuringTick()
+        {
+            SimulationSystemRegistry registry = new SimulationSystemRegistry();
+            FakeSystem first = new FakeSystem("alpha", null);
+            FakeSystem second = new FakeSystem("beta", null);
+            FakeSystem rebuilt = new FakeSystem("gamma", null);
+            first.OnTick = () =>
+            {
+                registry.ShutdownAll();
+                registry.Register(rebuilt);
+                registry.InitializeAll(_context);
+            };
+
+            registry.Register(first);
+            registry.Register(second);
+            registry.InitializeAll(_context);
+
+            registry.TickAll(Tick(1));
+
+            Assert.AreEqual(1, first.TickCount);
+            Assert.AreEqual(0, second.TickCount, "The old graph must not keep dispatching after a rebuild.");
+            Assert.AreEqual(0, rebuilt.TickCount, "The rebuilt graph must not receive the old batch either.");
+            Assert.AreEqual(1, rebuilt.InitializeCount, "The rebuilt graph is live for the next tick.");
+        }
+
+        [Test]
+        public void TickAll_IgnoresReentrantDispatch()
+        {
+            SimulationSystemRegistry registry = new SimulationSystemRegistry();
+            FakeSystem system = new FakeSystem("alpha", null);
+            system.OnTick = () => registry.TickAll(Tick(99));
+
+            registry.Register(system);
+            registry.InitializeAll(_context);
+
+            registry.TickAll(Tick(1));
+
+            Assert.AreEqual(1, system.TickCount, "A re-entrant tick call must be ignored.");
         }
 
         [Test]

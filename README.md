@@ -73,7 +73,7 @@ ticks (default `0.5 s`). See [ARCHITECTURE.md](ARCHITECTURE.md#11-simulation-cor
 
 From the editor: `Window → General → Test Runner`.
 
-* **EditMode** (`Assets/Tests/EditMode`) — **150 tests** covering the state machine, event bus,
+* **EditMode** (`Assets/Tests/EditMode`) — **162 tests** covering the state machine, event bus,
   service registry, configuration, game flow with a fake scene loader, save service, platform
   classification, UI scaling maths, build settings, and the Phase 02 core: deterministic clock
   (15), system registry ordering/failure isolation (18), simulation lifecycle and events (21),

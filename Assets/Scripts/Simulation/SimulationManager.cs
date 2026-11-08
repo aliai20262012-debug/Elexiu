@@ -25,6 +25,11 @@ namespace Nexus.Simulation
         private string _sessionId = string.Empty;
         private bool _disposed;
 
+        // Invalidates an in-flight tick batch as soon as the lifecycle changes (start, stop,
+        // pause, resume, reset, reconfigure). Speed changes intentionally do not.
+        private int _lifecycleVersion;
+        private bool _isTicking;
+
         public SimulationManager(IEventBus eventBus)
             : this(eventBus, null)
         {
@@ -117,6 +122,11 @@ namespace Nexus.Simulation
                 GameLog.Warning("Simulation timing was reconfigured while a session is active; the clock was rebased.");
             }
 
+            if (IsRunning)
+            {
+                _lifecycleVersion++;
+            }
+
             _settings = settings;
             ApplySettings();
         }
@@ -164,6 +174,8 @@ namespace Nexus.Simulation
                 return false;
             }
 
+            _lifecycleVersion++;
+
             bool startPaused = _settings.StartPaused;
             _clock.SetPaused(startPaused);
             _status = startPaused ? SimulationStatus.Paused : SimulationStatus.Running;
@@ -197,6 +209,7 @@ namespace Nexus.Simulation
                 return;
             }
 
+            _lifecycleVersion++;
             _clock.SetPaused(true);
             _status = SimulationStatus.Paused;
             _eventBus.Publish(new SimulationPausedEvent(_clock.TickCount, _clock.ElapsedSeconds));
@@ -210,6 +223,7 @@ namespace Nexus.Simulation
                 return;
             }
 
+            _lifecycleVersion++;
             _clock.SetPaused(false);
             _status = SimulationStatus.Running;
             _eventBus.Publish(new SimulationResumedEvent(_clock.TickCount, _clock.ElapsedSeconds));
@@ -239,6 +253,8 @@ namespace Nexus.Simulation
         {
             bool wasActive = _status == SimulationStatus.Running || _status == SimulationStatus.Paused;
 
+            // Invalidate any batch currently being dispatched before tearing anything down.
+            _lifecycleVersion++;
             _systems.ShutdownAll();
 
             string sessionId = _sessionId;
@@ -271,7 +287,8 @@ namespace Nexus.Simulation
 
         public void Tick(double deltaTime)
         {
-            if (_status != SimulationStatus.Running)
+            // Re-entrancy guard: a tick handler must not be able to recurse into the driver.
+            if (_status != SimulationStatus.Running || _isTicking)
             {
                 return;
             }
@@ -283,31 +300,96 @@ namespace Nexus.Simulation
             }
 
             long firstTick = _clock.TickCount - completedTicks + 1;
+            long clockTickCountAfterAdvance = _clock.TickCount;
             double interval = _clock.TickIntervalSeconds;
             double speed = _clock.SpeedMultiplier;
             int systemsTicked = _systems.Count;
+            string sessionId = _sessionId;
+            int lifecycleVersion = _lifecycleVersion;
 
-            for (int i = 0; i < completedTicks; i++)
+            int processedTicks = 0;
+            bool aborted = false;
+
+            _isTicking = true;
+            try
             {
-                long tick = firstTick + i;
-                double elapsed = tick * interval;
-                SimulationContext context = new SimulationContext(tick, interval, elapsed, speed, _sessionId);
+                for (int i = 0; i < completedTicks; i++)
+                {
+                    if (!CanContinueTickBatch(lifecycleVersion))
+                    {
+                        aborted = true;
+                        break;
+                    }
 
-                // Domain signal: systems and future gameplay listeners react to the tick.
-                _eventBus.Publish(new SimulationTickEvent(tick, (float)interval));
+                    long tick = firstTick + i;
+                    double elapsed = tick * interval;
+                    SimulationContext context = new SimulationContext(tick, interval, elapsed, speed, sessionId);
 
-                int failedSystems = _systems.TickAll(context);
+                    // Domain signal: systems and future gameplay listeners react to the tick.
+                    _eventBus.Publish(new SimulationTickEvent(tick, (float)interval));
 
-                // Outcome signal: presentation/telemetry consumers read the completed state.
-                _eventBus.Publish(new SimulationTickCompletedEvent(
-                    _sessionId,
-                    tick,
-                    interval,
-                    elapsed,
-                    speed,
-                    systemsTicked,
-                    failedSystems));
+                    // The tick is now observable, so it counts as processed even if a listener
+                    // aborts the rest of the batch below.
+                    processedTicks++;
+
+                    // A listener may have paused/stopped/reset the simulation. Never dispatch a
+                    // stale tick into a closed session or a shut down system graph.
+                    if (!CanContinueTickBatch(lifecycleVersion))
+                    {
+                        aborted = true;
+                        break;
+                    }
+
+                    int failedSystems = _systems.TickAll(context);
+
+                    if (!CanContinueTickBatch(lifecycleVersion))
+                    {
+                        aborted = true;
+                        break;
+                    }
+
+                    // Outcome signal: presentation/telemetry consumers read the completed state.
+                    _eventBus.Publish(new SimulationTickCompletedEvent(
+                        sessionId,
+                        tick,
+                        interval,
+                        elapsed,
+                        speed,
+                        systemsTicked,
+                        failedSystems));
+                }
             }
+            finally
+            {
+                _isTicking = false;
+            }
+
+            if (!aborted)
+            {
+                return;
+            }
+
+            int unprocessed = completedTicks - processedTicks;
+            if (unprocessed > 0 &&
+                _clock.TickCount == clockTickCountAfterAdvance &&
+                string.Equals(_sessionId, sessionId, StringComparison.Ordinal))
+            {
+                // The clock still belongs to this batch: undo the ticks nobody observed.
+                _clock.DiscardUnprocessedTicks(unprocessed);
+                GameLog.Info(
+                    "Simulation tick batch aborted after " + processedTicks + " of " + completedTicks +
+                    " ticks (" + _status + "); " + unprocessed + " undispatched tick(s) rolled back.");
+            }
+        }
+
+        /// <summary>
+        /// True while the batch that started with <paramref name="lifecycleVersion"/> is still
+        /// valid: the simulation is running and no lifecycle transition (pause, resume, stop,
+        /// reset, restart, dispose, reconfigure) has happened since.
+        /// </summary>
+        private bool CanContinueTickBatch(int lifecycleVersion)
+        {
+            return _status == SimulationStatus.Running && _lifecycleVersion == lifecycleVersion;
         }
 
         public void Dispose()

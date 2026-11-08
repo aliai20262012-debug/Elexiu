@@ -418,6 +418,200 @@ namespace Nexus.Tests.EditMode
         }
 
         [Test]
+        public void PauseDuringTickEvent_StopsRemainingTicks()
+        {
+            ConfigureFastClock();
+            Start();
+
+            int tickEvents = 0;
+            int completedEvents = 0;
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                _manager.Pause();
+            });
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+
+            _manager.Tick(0.5);
+
+            Assert.AreEqual(1, tickEvents, "Only the tick already being dispatched may be published.");
+            Assert.AreEqual(0, completedEvents, "A paused tick must not be reported as completed.");
+            Assert.AreEqual(SimulationStatus.Paused, _manager.Status);
+            Assert.AreEqual(1L, _manager.TickCount, "Undispatched ticks must be rolled back.");
+            Assert.AreEqual(0.1, _manager.ElapsedSeconds, 0.0001);
+        }
+
+        [Test]
+        public void StopDuringTickEvent_PublishesNoStaleTicks()
+        {
+            ConfigureFastClock();
+            Start("session-stop");
+
+            int tickEvents = 0;
+            int completedEvents = 0;
+            int stoppedEvents = 0;
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                _manager.Stop();
+            });
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+            _eventBus.Subscribe<SimulationStoppedEvent>(gameEvent => stoppedEvents++);
+
+            _manager.Tick(0.5);
+
+            Assert.AreEqual(1, tickEvents);
+            Assert.AreEqual(0, completedEvents, "No completion may be published after a stop.");
+            Assert.AreEqual(1, stoppedEvents);
+            Assert.AreEqual(SimulationStatus.Stopped, _manager.Status);
+            Assert.AreEqual(0L, _manager.TickCount);
+            Assert.AreEqual(string.Empty, _manager.SessionId);
+        }
+
+        [Test]
+        public void ResetDuringTickEvent_PublishesNoStaleTicks()
+        {
+            ConfigureFastClock();
+            Start();
+
+            int tickEvents = 0;
+            int completedEvents = 0;
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                _manager.Reset();
+            });
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+
+            _manager.Tick(0.5);
+
+            Assert.AreEqual(1, tickEvents);
+            Assert.AreEqual(0, completedEvents);
+            Assert.AreEqual(SimulationStatus.Stopped, _manager.Status);
+            Assert.AreEqual(0L, _manager.TickCount);
+            Assert.AreEqual(0.0, _manager.ElapsedSeconds, 0.0001);
+        }
+
+        [Test]
+        public void DisposeDuringTickEvent_AbortsWithoutStaleEvents()
+        {
+            ConfigureFastClock();
+            Start();
+
+            int tickEvents = 0;
+            int completedEvents = 0;
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                _manager.Dispose();
+            });
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+
+            _manager.Tick(0.5);
+
+            Assert.AreEqual(1, tickEvents);
+            Assert.AreEqual(0, completedEvents);
+            Assert.AreEqual(SimulationStatus.Stopped, _manager.Status);
+            Assert.AreEqual(0L, _manager.TickCount);
+
+            Assert.DoesNotThrow(() => _manager.Tick(0.1));
+            Assert.AreEqual(1, tickEvents, "A disposed manager must not tick again.");
+        }
+
+        [Test]
+        public void NestedTickFromTickHandler_IsIgnored()
+        {
+            ConfigureFastClock();
+            Start();
+
+            int tickEvents = 0;
+            bool nested = false;
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                if (!nested)
+                {
+                    nested = true;
+                    _manager.Tick(1.0);
+                }
+            });
+
+            _manager.Tick(0.2);
+
+            Assert.AreEqual(2, tickEvents, "A re-entrant Tick call must be ignored.");
+            Assert.AreEqual(2L, _manager.TickCount);
+            Assert.AreEqual(0.2, _manager.ElapsedSeconds, 0.0001);
+        }
+
+        [Test]
+        public void PauseAndResumeDuringTickEvent_DoesNotDispatchTheRestOfTheBatch()
+        {
+            ConfigureFastClock();
+            Start();
+
+            int tickEvents = 0;
+            int completedEvents = 0;
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                _manager.Pause();
+                _manager.Resume();
+            });
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+
+            _manager.Tick(0.5);
+
+            Assert.AreEqual(1, tickEvents);
+            Assert.AreEqual(0, completedEvents);
+            Assert.AreEqual(SimulationStatus.Running, _manager.Status);
+            Assert.AreEqual(1L, _manager.TickCount);
+            Assert.AreEqual(0.1, _manager.ElapsedSeconds, 0.0001);
+        }
+
+        [Test]
+        public void StopAndRestartDuringTickEvent_DoesNotDispatchIntoTheNewSession()
+        {
+            ConfigureFastClock();
+
+            int startedEvents = 0;
+            int stoppedEvents = 0;
+            int tickEvents = 0;
+            int completedEvents = 0;
+
+            _eventBus.Subscribe<SimulationStartedEvent>(gameEvent => startedEvents++);
+            _eventBus.Subscribe<SimulationStoppedEvent>(gameEvent => stoppedEvents++);
+            _eventBus.Subscribe<SimulationTickCompletedEvent>(gameEvent => completedEvents++);
+            _eventBus.Subscribe<SimulationTickEvent>(gameEvent =>
+            {
+                tickEvents++;
+                if (tickEvents > 1)
+                {
+                    return;
+                }
+
+                _manager.Stop();
+                string error;
+                _manager.TryStartSimulation(CreateSessionContext("session-two"), out error);
+            });
+
+            Start("session-one");
+            _manager.Tick(0.5);
+
+            Assert.AreEqual(2, startedEvents);
+            Assert.AreEqual(1, stoppedEvents);
+            Assert.AreEqual(1, tickEvents);
+            Assert.AreEqual(0, completedEvents);
+            Assert.AreEqual("session-two", _manager.SessionId);
+            Assert.AreEqual(SimulationStatus.Running, _manager.Status);
+            Assert.AreEqual(0L, _manager.TickCount, "The new session must not inherit the old batch.");
+        }
+
+        private void ConfigureFastClock()
+        {
+            _manager.Configure(new SimulationSettings(0.1, 8, 1.0, new[] { 1.0 }, 1.0, false));
+        }
+
+        [Test]
         public void Dispose_StopsSimulation_AndShutsSystemsDown()
         {
             RecordingSystem system = new RecordingSystem("alpha");

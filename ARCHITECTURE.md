@@ -259,6 +259,24 @@ Failure handling: if the graph cannot be ordered or a system throws during `Init
 registry shuts down every system it already initialized, `TryStartSimulation` returns `false`
 with a readable reason, and the status becomes `Failed`. A retry is allowed from `Failed`.
 
+**Interruption safety.** A tick batch is a loop, and listeners run inside it, so every step
+re-checks the lifecycle:
+
+* `Tick` is re-entrancy safe: a call made from inside a tick handler is ignored (`_isTicking`).
+* A batch records the lifecycle version it started with. Pausing, resuming, stopping,
+  resetting, restarting, disposing or reconfiguring the manager bumps that version; the loop
+  then stops before publishing the next tick, before dispatching systems, and before
+  publishing `SimulationTickCompletedEvent`.
+* Ticks that were never published are rolled back with
+  `SimulationClock.DiscardUnprocessedTicks`, but only while the clock still belongs to the same
+  batch (`TickCount` unchanged since `Advance` and the same session id). A stop/restart that
+  already reset the clock is never "corrected" backwards.
+* The tick that was already published stays accounted for, so `TickCount` always equals the
+  highest tick number a listener has observed; a paused mid-tick never reports completion.
+* `SimulationSystemRegistry.TickAll` ignores re-entrant dispatch, iterates a snapshot of its
+  arrays, and stops dispatching as soon as the graph is shut down — or shut down and rebuilt —
+  from inside a system's `Tick` (a generation counter guards the rebuild case).
+
 ### 11.2 Deterministic clock
 
 `SimulationClock` is a pure C# fixed-step accumulator (`System` only, no Unity types):
