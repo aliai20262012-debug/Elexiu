@@ -321,7 +321,9 @@ touching Phase 03 code.
 
 * Branch: `arena/317a56b6-elexiu` (never force-pushed)
 * Base: `941612e` — approved Phase 02
-* Phase 03 commit: `2f27508` — "Phase 03: NEXUS-01 planet system, world foundation and regional view"
+* Phase 03 commit: a single commit on this branch,
+  "Phase 03: NEXUS-01 planet system, world foundation and regional view"
+  (see `git log --oneline 941612e..HEAD`)
 * Push: `git push origin arena/317a56b6-elexiu`
 
 Phase 04 has **not** been started and will not be until the owner approves this report.
