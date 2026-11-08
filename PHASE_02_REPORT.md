@@ -276,9 +276,16 @@ surface, serialization of the new asset fields, runtime lifecycle in a real play
 ## 10. Git
 
 * Branch: `arena/317a56b6-elexiu` (never switched, never renamed).
-* Commits in this phase: a Phase 01 baseline commit preserving the approved work, followed by a
-  single Phase 02 commit with the core architecture, tests and documentation.
-* No previous commit was amended, rebased or removed.
+* Phase 01 history is preserved unchanged:
+  `41cc0b9 → 78c0076 → dc94bd9 → 001c972`.
+* `7d86ea4` — Phase 01 hygiene: `.gitkeep` placeholders for the documented empty Unity folders
+  plus dot-file handling in `Tools/generate_project_metadata.py` / `Tools/validate_project.py`
+  (Git cannot store empty directories, which previously left orphan folder `.meta` files).
+* `729b73b` — Phase 02: the core simulation architecture, tests, configuration, UI and
+  documentation (59 files changed, 5981 insertions(+), 197 deletions(-)).
+* The branch was fast-forwarded onto `001c972` and pushed; no commit was amended, rewritten or
+  removed, and the pre-rebase tree is byte-identical to the pushed tree (verified with
+  `git diff`).
 
 ---
 
