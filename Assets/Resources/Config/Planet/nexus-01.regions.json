@@ -1,0 +1,279 @@
+{
+  "planetId": "NEXUS-01",
+  "schemaVersion": "1.0",
+  "regions": [
+    {
+      "id": 1,
+      "code": "NX-AU-01",
+      "name": "AURORA BASIN",
+      "description": "Sheltered equatorial basin with year-round rainfall and a wide continental shelf.",
+      "terrain": "Plains",
+      "water": "Coastal",
+      "landFraction": 0.72,
+      "latitude": 34.0,
+      "longitude": -18.0,
+      "radius": 16.0,
+      "climate": {
+        "meanTemperatureC": 16.5,
+        "temperatureRangeC": 12.0,
+        "humidity": 0.62,
+        "windKph": 14.0,
+        "precipitationMm": 780.0
+      },
+      "resources": [
+        { "type": "Water", "abundance": 0.82 },
+        { "type": "Biomass", "abundance": 0.68 },
+        { "type": "Minerals", "abundance": 0.44 },
+        { "type": "Metals", "abundance": 0.31 }
+      ],
+      "environment": {
+        "airQuality": 0.88,
+        "radiation": 0.12,
+        "biodiversity": 0.74,
+        "tectonicActivity": 0.22
+      },
+      "habitability": {
+        "score": 0.81,
+        "limitingFactor": "SEASONAL STORMS"
+      }
+    },
+    {
+      "id": 2,
+      "code": "NX-VD-02",
+      "name": "VERDANT SHELF",
+      "description": "Warm shallow seas and mangrove deltas; the richest biomass reservoir on the planet.",
+      "terrain": "Coastal",
+      "water": "OceanAccess",
+      "landFraction": 0.61,
+      "latitude": 12.0,
+      "longitude": 42.0,
+      "radius": 15.0,
+      "climate": {
+        "meanTemperatureC": 23.8,
+        "temperatureRangeC": 7.0,
+        "humidity": 0.84,
+        "windKph": 18.0,
+        "precipitationMm": 1420.0
+      },
+      "resources": [
+        { "type": "Biomass", "abundance": 0.91 },
+        { "type": "Water", "abundance": 0.88 },
+        { "type": "Minerals", "abundance": 0.22 }
+      ],
+      "environment": {
+        "airQuality": 0.79,
+        "radiation": 0.18,
+        "biodiversity": 0.93,
+        "tectonicActivity": 0.14
+      },
+      "habitability": {
+        "score": 0.74,
+        "limitingFactor": "TROPICAL DISEASE VECTORS"
+      }
+    },
+    {
+      "id": 3,
+      "code": "NX-KR-03",
+      "name": "KARRIC HIGHLANDS",
+      "description": "Cold, mineral-rich plateaus cut by glacial valleys and old impact craters.",
+      "terrain": "Highlands",
+      "water": "Landlocked",
+      "landFraction": 0.95,
+      "latitude": 46.0,
+      "longitude": 96.0,
+      "radius": 18.0,
+      "climate": {
+        "meanTemperatureC": 2.4,
+        "temperatureRangeC": 26.0,
+        "humidity": 0.38,
+        "windKph": 34.0,
+        "precipitationMm": 310.0
+      },
+      "resources": [
+        { "type": "Metals", "abundance": 0.76 },
+        { "type": "RareEarths", "abundance": 0.58 },
+        { "type": "Minerals", "abundance": 0.71 },
+        { "type": "Geothermal", "abundance": 0.36 }
+      ],
+      "environment": {
+        "airQuality": 0.66,
+        "radiation": 0.28,
+        "biodiversity": 0.21,
+        "tectonicActivity": 0.48
+      },
+      "habitability": {
+        "score": 0.52,
+        "limitingFactor": "THIN ATMOSPHERE"
+      }
+    },
+    {
+      "id": 4,
+      "code": "NX-DS-04",
+      "name": "DUNE MERIDIAN",
+      "description": "A continent-sized erg of iron-stained sand crossed by dry salt basins.",
+      "terrain": "Desert",
+      "water": "Landlocked",
+      "landFraction": 0.99,
+      "latitude": -8.0,
+      "longitude": 130.0,
+      "radius": 20.0,
+      "climate": {
+        "meanTemperatureC": 38.6,
+        "temperatureRangeC": 32.0,
+        "humidity": 0.09,
+        "windKph": 22.0,
+        "precipitationMm": 40.0
+      },
+      "resources": [
+        { "type": "RareEarths", "abundance": 0.69 },
+        { "type": "Minerals", "abundance": 0.64 },
+        { "type": "Metals", "abundance": 0.47 }
+      ],
+      "environment": {
+        "airQuality": 0.54,
+        "radiation": 0.41,
+        "biodiversity": 0.06,
+        "tectonicActivity": 0.18
+      },
+      "habitability": {
+        "score": 0.24,
+        "limitingFactor": "EXTREME HEAT"
+      }
+    },
+    {
+      "id": 5,
+      "code": "NX-HL-05",
+      "name": "HALCYON TUNDRA",
+      "description": "Wind-scoured northern plain with permafrost, fjords and a short growing season.",
+      "terrain": "Tundra",
+      "water": "Coastal",
+      "landFraction": 0.78,
+      "latitude": 62.0,
+      "longitude": -120.0,
+      "radius": 17.0,
+      "climate": {
+        "meanTemperatureC": -14.2,
+        "temperatureRangeC": 24.0,
+        "humidity": 0.46,
+        "windKph": 41.0,
+        "precipitationMm": 260.0
+      },
+      "resources": [
+        { "type": "Water", "abundance": 0.74 },
+        { "type": "Metals", "abundance": 0.52 },
+        { "type": "Biomass", "abundance": 0.19 }
+      ],
+      "environment": {
+        "airQuality": 0.83,
+        "radiation": 0.22,
+        "biodiversity": 0.18,
+        "tectonicActivity": 0.12
+      },
+      "habitability": {
+        "score": 0.41,
+        "limitingFactor": "PERMAFROST"
+      }
+    },
+    {
+      "id": 6,
+      "code": "NX-OC-06",
+      "name": "MERIDIAN ABYSS",
+      "description": "Deep ocean region with hadal trenches and persistent storm systems.",
+      "terrain": "Ocean",
+      "water": "OpenOcean",
+      "landFraction": 0.04,
+      "latitude": -20.0,
+      "longitude": -150.0,
+      "radius": 24.0,
+      "climate": {
+        "meanTemperatureC": 19.1,
+        "temperatureRangeC": 4.0,
+        "humidity": 0.96,
+        "windKph": 52.0,
+        "precipitationMm": 1810.0
+      },
+      "resources": [
+        { "type": "Water", "abundance": 1.0 },
+        { "type": "Geothermal", "abundance": 0.44 },
+        { "type": "Biomass", "abundance": 0.27 }
+      ],
+      "environment": {
+        "airQuality": 0.86,
+        "radiation": 0.16,
+        "biodiversity": 0.58,
+        "tectonicActivity": 0.62
+      },
+      "habitability": {
+        "score": 0.08,
+        "limitingFactor": "NO LANDMASS"
+      }
+    },
+    {
+      "id": 7,
+      "code": "NX-EM-07",
+      "name": "EMBER REACH",
+      "description": "Active volcanic archipelago; geothermal energy is abundant but the ground is unstable.",
+      "terrain": "Volcanic",
+      "water": "Coastal",
+      "landFraction": 0.38,
+      "latitude": -28.0,
+      "longitude": 60.0,
+      "radius": 12.0,
+      "climate": {
+        "meanTemperatureC": 29.4,
+        "temperatureRangeC": 11.0,
+        "humidity": 0.58,
+        "windKph": 26.0,
+        "precipitationMm": 690.0
+      },
+      "resources": [
+        { "type": "Geothermal", "abundance": 0.94 },
+        { "type": "Metals", "abundance": 0.63 },
+        { "type": "Minerals", "abundance": 0.55 }
+      ],
+      "environment": {
+        "airQuality": 0.42,
+        "radiation": 0.37,
+        "biodiversity": 0.29,
+        "tectonicActivity": 0.91
+      },
+      "habitability": {
+        "score": 0.18,
+        "limitingFactor": "VOLCANIC ACTIVITY"
+      }
+    },
+    {
+      "id": 8,
+      "code": "NX-IS-08",
+      "name": "POLAR VEIL",
+      "description": "Permanent ice sheet over a subglacial sea; scientific value exceeds settlement value.",
+      "terrain": "Ice",
+      "water": "Landlocked",
+      "landFraction": 0.66,
+      "latitude": 82.0,
+      "longitude": 10.0,
+      "radius": 10.0,
+      "climate": {
+        "meanTemperatureC": -38.5,
+        "temperatureRangeC": 18.0,
+        "humidity": 0.22,
+        "windKph": 48.0,
+        "precipitationMm": 90.0
+      },
+      "resources": [
+        { "type": "Water", "abundance": 0.97 },
+        { "type": "RareEarths", "abundance": 0.31 }
+      ],
+      "environment": {
+        "airQuality": 0.91,
+        "radiation": 0.34,
+        "biodiversity": 0.04,
+        "tectonicActivity": 0.08
+      },
+      "habitability": {
+        "score": 0.12,
+        "limitingFactor": "POLAR NIGHT"
+      }
+    }
+  ]
+}
